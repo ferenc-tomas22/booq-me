@@ -118,6 +118,8 @@ import { bookingFormSchema } from '@/lib/validation';
 import { ok, fail, type ActionResult } from '@/lib/action-result';
 import { buildBratislavaDateTime } from '@/lib/timezone';
 
+// Vstup pre createBooking — note pripustame ako string aj null aj undefined,
+// Zod transform si to znormalizuje (trim, prazdne -> null).
 type CreateBookingInput = {
   serviceId: string;
   date: string; // YYYY-MM-DD
@@ -125,7 +127,7 @@ type CreateBookingInput = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  note?: string;
+  note?: string | null;
 };
 
 export const createBooking = async (
@@ -226,13 +228,8 @@ export const CustomerForm = ({ serviceId, date, time }: Props) => {
 
   const onSubmit = (values: BookingFormData) => {
     startTransition(async () => {
-      const result = await createBooking({
-        ...values,
-        note: values.note ?? undefined, // null → undefined pre createBooking input typ
-        serviceId,
-        date,
-        time,
-      });
+      // Note: values.note moze byt null (zod transform) — createBooking to akceptuje.
+      const result = await createBooking({ ...values, serviceId, date, time });
       if (!result.ok) {
         toast.error(result.error);
         return;

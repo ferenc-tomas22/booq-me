@@ -1,7 +1,7 @@
 # Task 01 — Project Setup
 
 **Modul:** 1 — Setup & základy
-**Čas:** ~45–60 min
+**Čas:** ~60–90 min (prvý task, väčšina je setup nástrojov)
 **Obtiažnosť:** ★☆☆☆☆
 
 ## Čo sa naučíš
@@ -47,17 +47,34 @@ npm install -g pnpm
 
 Ak `gh` nemáš: [cli.github.com](https://cli.github.com) → install → `gh auth login`.
 
-### 2. Naclonuj prázdne repo `booq-me`
+### 2. Vytvor si **vlastné GitHub repo** s týmto curriculom
+
+Originál repo `ferenc-tomas22/booq-me` je len **šablóna s taskmi** — ty si robíš svoj
+vlastný projekt s vlastnou históriou commitov.
+
+**Najjednoduchšie**: vytvor si vlastný fork:
 
 ```bash
 cd ~/Desktop
-gh repo clone ferenc-tomas22/booq-me
+gh repo fork ferenc-tomas22/booq-me --clone --remote-name=upstream
 cd booq-me
-ls
 ```
 
-Mal by si vidieť `README.md` + priečinok `tasks/`. **V tomto priečinku vygenerujeme appku** —
-takže `package.json`, `src/`, `next.config.ts` pôjdu vedľa `tasks/`.
+Toto urobí:
+- Vytvorí `booq-me` na **tvojom** GitHub účte (`<tvoj-username>/booq-me`)
+- Klonuje ho lokálne
+- Pridá `upstream` remote na originál (keby som niekedy aktualizoval tasky)
+
+Over že máš správny `origin`:
+
+```bash
+git remote -v
+# origin    https://github.com/<tvoj-username>/booq-me.git (fetch + push)
+# upstream  https://github.com/ferenc-tomas22/booq-me.git  (fetch + push)
+```
+
+Mal by si vidieť `README.md` + priečinok `tasks/`. **V tomto priečinku vygenerujeme
+appku** — takže `package.json`, `src/`, `next.config.ts` pôjdu vedľa `tasks/`.
 
 ### 3. Hraj sa s ui.shadcn.com/create
 
@@ -102,15 +119,23 @@ Kde `b0` je tvoj preset s tvojimi farbami/fontami.
 
 > ⚠️ **DÔLEŽITÉ:** zvoľ **pnpm** záložku (nie npm/yarn/bun).
 
-Skopíruj príkaz a spusti ho **v priečinku `~/Desktop/booq-me/`**:
+> ⚠️ **Dôležité — shadcn init vyžaduje prázdny priečinok.** Náš repo už obsahuje `README.md`
+> a `tasks/`. Musíme ich dočasne presunúť, init, a vrátiť:
 
 ```bash
 cd ~/Desktop/booq-me
-# vlož svoj príkaz tu, napríklad:
+
+# 1. Dočasne presuň README + tasks o úroveň vyššie
+mv README.md tasks ..
+
+# 2. Spusti shadcn init (vlož svoj skopírovaný command)
 pnpm dlx shadcn@latest init --preset b0 --template next --base radix
+
+# 3. Vráť README + tasks späť
+mv ../README.md ../tasks .
 ```
 
-CLI sa ťa opýta:
+CLI sa ťa počas init-u opýta:
 
 | Otázka | Odpoveď |
 |--------|---------|
@@ -143,10 +168,9 @@ git status
 git remote -v
 ```
 
-`origin` by mal smerovať na `https://github.com/ferenc-tomas22/booq-me.git` (pretože si
-naklonoval cez `gh repo clone`).
+`origin` by mal smerovať na **tvoj fork** (`<tvoj-username>/booq-me`).
 
-Mal by si vidieť všetky nové súbory ako "untracked" — to je správne.
+Mal by si vidieť všetky nové súbory ako "untracked/modified" — to je správne.
 
 ### 8. Pridaj `.env.local` do `.gitignore`
 
@@ -172,7 +196,8 @@ Otvor GitHub repo v prehliadači — uvidíš svoju appku.
 ## Acceptance Criteria
 
 - [ ] `node --version` (v20+), `pnpm --version` (v9+), `gh --version` všetko funguje
-- [ ] Repo `booq-me` je naklonované do `~/Desktop/booq-me/`
+- [ ] Vlastný fork `<tvoj-username>/booq-me` existuje na GitHube
+- [ ] Repo je naklonované do `~/Desktop/booq-me/`, `origin` smeruje na tvoj fork
 - [ ] V priečinku `booq-me/` máš `package.json`, `src/`, `next.config.ts` (vedľa pôvodných `tasks/` a `README.md`)
 - [ ] `pnpm dev` spustí dev server na porte 3000
 - [ ] `localhost:3000` ukazuje stránku **v tvojej zvolenej téme** (farby, font, radius zodpovedajú tomu čo si vybral)
@@ -191,14 +216,8 @@ Otvor GitHub repo v prehliadači — uvidíš svoju appku.
 Node.js v user-space. Pýtaj sa Claude: *"Ako nainštalujem nvm na Macu?"*
 
 **Problém:** `pnpm dlx shadcn@latest init ...` hodí error že priečinok nie je prázdny
-**Riešenie:** shadcn `init --template` vyžaduje **prázdny** priečinok. Repo má `README.md`
-+ `tasks/`. Riešenie: presuň ich dočasne von, spusti init, vráť ich:
-```bash
-mv README.md tasks ..
-pnpm dlx shadcn@latest init --preset b0 --template next --base radix
-mv ../README.md ../tasks .
-```
-Alternatíva: vytvor podpriečinok `app/`, init tam a Vercel root-directory nastavíš `app`.
+**Riešenie:** Krok 5 to rieši cez `mv` workaround — postupuj presne podľa neho. Alternatíva:
+vytvor podpriečinok `app/`, init tam a Vercel root-directory neskôr nastavíš `app`.
 
 **Problém:** `git push` ti pýta heslo
 **Riešenie:** GitHub od 2021 nepoužíva heslá. Spusti `gh auth login` — vyrieši to za teba.

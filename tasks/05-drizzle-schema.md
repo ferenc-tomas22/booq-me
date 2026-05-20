@@ -206,8 +206,9 @@ V `package.json` pridaj do `scripts`:
 }
 ```
 
-(`migrate` budeme používať až v Tasku 14 pre production. `migrate-runner.ts` tiež vytvoríme
-neskôr.)
+(`migrate` budeme používať až v Tasku 14 pre production. Súbor `src/db/migrate-runner.ts`
+ešte neexistuje — vytvoríme ho v Tasku 14. **Nespúšťaj `pnpm db:migrate` teraz, spadlo by
+to.** Pre dev používame `pnpm db:push`.)
 
 ### 5. Pushni schemu do Neonu
 

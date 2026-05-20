@@ -148,7 +148,11 @@ export const getDayOfWeekBratislava = (date: Date): number => {
 
 ```ts
 import { addMinutes } from 'date-fns';
-import { formatBratislavaTime, getDayOfWeekBratislava, buildBratislavaDateTime } from './timezone';
+import {
+  buildBratislavaDateTime,
+  formatBratislavaTime,
+  getDayOfWeekBratislava,
+} from './timezone';
 
 // Working hours sú zatiaľ hardcoded. V Tasku 12 ich Samuel bude vedieť meniť.
 const WORKING_HOURS: Record<number, { start: string; end: string } | null> = {

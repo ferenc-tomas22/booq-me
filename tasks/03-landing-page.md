@@ -81,7 +81,7 @@ Stránka má 3 sekcie:
 - Zoznam služieb (skopíruj z booqme.sk Men's Hub) — **cena je v centoch**:
 
 ```ts
-import { Scissors, Beard, Sparkles, Baby, ChevronRight } from 'lucide-react';
+import { Scissors, Sparkles, Baby } from 'lucide-react';
 
 const services = [
   {
@@ -122,8 +122,10 @@ const services = [
 ];
 ```
 
-> ⚠️ Lucide nemá ikonu `Beard` — vyber si alternatívu (`Sparkles`, `Sunrise`, `Moustache`
-> nie je v Lucide, ale je v Tabler Icons). Hraj sa.
+> 💡 **Lucide nemá ikonu špeciálne pre bradu** — použili sme `Sparkles` (svieži look). Skús
+> si pozrieť [lucide.dev/icons](https://lucide.dev/icons) a vybrať čo sa ti páči viac.
+> Alternatívy mimo Lucide: [Tabler Icons](https://tabler.io/icons) má `Moustache`,
+> `Beard`.
 
 **C) Kontakt**
 - Adresa salónu (vymysli si — napr. *"Hlavná 12, 811 01 Bratislava"*)

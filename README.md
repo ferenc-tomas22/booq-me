@@ -123,22 +123,23 @@ Predtým než začneš, mal by si:
 
 ---
 
-## Čo je zámerne vynechané
+## Mimo scope kurzu — pridáš si neskôr
 
-Pre udržanie scope rozumný pre **prvý full-stack projekt** sme z MVP vynechali:
+Toto MVP zámerne necieli na "production-ready komerčný produkt" — cieli na **funkčný
+end-to-end zážitok** ktorý vieš postaviť za pár dní. Tieto veci by sa pridali keď máš
+stabilný feature set:
 
-- 🚫 **Multi-staff** (Samuel + Robert) — všetky bookingy idu k Samuelovi
-- 🚫 **Online platby** (Stripe) — len platba na mieste
-- 🚫 **SMS notifikácie** — len email
-- 🚫 **Recenzie zákazníkov** — žiadny rating system
-- 🚫 **Testy** (unit + E2E) — manuálne testovanie cez UI
-- 🚫 **Accessibility audit** — aria-labels, screen reader testing
-- 🚫 **Git branching/PR workflow** — pushujeme priamo na `main`
-- 🚫 **CI/CD pipeline** — Vercel auto-deploy stačí
-- 🚫 **Rate limiting** — open booking endpoint (riziko spamu)
-
-Všetko z toho ti v Tasku 14 odporúčam ako "čo ďalej" — keď zvládneš základ, môžeš to
-postupne pridať.
+| Vec | Prečo neskôr |
+|---|---|
+| **Multi-staff** (Samuel + Robert) | Single-staff je o krok jednoduchší flow; rozšírenie je čistý DB refactor |
+| **Online platba** (Stripe) | Vyžaduje webhooky, refundy, fraud handling — vlastný projekt |
+| **SMS notifikácie** | Twilio integration + náklady na SMS; email pokryje 90 % use case |
+| **Recenzie zákazníkov** | Pridáš po prvých 50 rezerváciách keď máš zákazníkov |
+| **Unit + E2E testy** | Pridáš keď máš stabilný feature set; teraz by ti len brzdili iterácie |
+| **Accessibility audit** | shadcn/ui má a11y základ; full audit pred verejným launchom |
+| **Git branching/PR workflow** | Solo dev s jednou environmentou; tím + staging by si pýtal PR-y |
+| **CI/CD pipeline** | Vercel auto-deploy stačí; vlastný CI keď budeš mať testy |
+| **Rate limiting** | Open booking je riziko spamu; pridaj cez Upstash alebo Vercel Edge Config po launchi |
 
 ---
 

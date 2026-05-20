@@ -281,7 +281,9 @@ V `src/app/rezervacia/actions.ts`, **pred** `return ok(...)`:
 ```ts
 // Posli emaily SYNCHRONNE (Vercel zmrazi funkciu po returne, takze fire-and-forget by zlyhal).
 // Trvanie ~1s je akceptovatelne — user uz klikol, caka na potvrdenie tak ci tak.
-const emailPromises = [
+// Pouzivame Promise.allSettled — bez .catch() — aby sme dostali strukturovany report
+// (status: 'fulfilled' | 'rejected') pre kazdy email a vedeli ich rozdielne odlogovat.
+const emailResults = await Promise.allSettled([
   sendBookingConfirmationToCustomer({
     to: parsed.data.customerEmail,
     customerName: parsed.data.customerName,
@@ -289,8 +291,7 @@ const emailPromises = [
     startTime,
     priceCents: service.priceCents,
     durationMinutes: service.durationMinutes,
-  }).catch((err) => console.error('Customer email failed:', err)),
-
+  }),
   sendNewBookingToAdmin({
     customerName: parsed.data.customerName,
     customerEmail: parsed.data.customerEmail,
@@ -298,10 +299,15 @@ const emailPromises = [
     serviceName: service.name,
     startTime,
     note: parsed.data.note,
-  }).catch((err) => console.error('Admin email failed:', err)),
-];
+  }),
+]);
 
-await Promise.allSettled(emailPromises);
+const emailLabels = ['Customer confirmation', 'Admin notification'] as const;
+emailResults.forEach((result, i) => {
+  if (result.status === 'rejected') {
+    console.error(`${emailLabels[i]} email failed:`, result.reason);
+  }
+});
 ```
 
 Nezabudni importy hore:
@@ -310,10 +316,14 @@ Nezabudni importy hore:
 import { sendBookingConfirmationToCustomer, sendNewBookingToAdmin } from '@/lib/email';
 ```
 
-> 💡 **`Promise.allSettled`** počká na všetky promises, **bez ohľadu** na to či zlyhajú.
-> Ak email zlyhá, rezervácia sa **stále** vytvorí (insert prebehol skôr) — user dostane
-> success, ale my si v logoch zaznamenáme problém. Lepšie než celá rezervácia zlyhá pre
-> zlý SMTP.
+> 💡 **`Promise.allSettled`** počká na **všetky** promises a vráti pole
+> `{ status: 'fulfilled' | 'rejected', value/reason }`. Na rozdiel od `Promise.all`
+> nezhodí pri prvom rejecte — to je presne čo chceme, lebo ak zlyhá customer email, stále
+> chceme poslať admin notifikáciu (a naopak).
+>
+> ⚠️ **Pozor**: keby si dal `.catch()` na každý promise pred `Promise.allSettled`, výsledok
+> by sa vždy javil ako `fulfilled` (lebo `.catch()` to ošetrí) a logging by si stratil
+> presný error. Buď `.catch()` ALEBO `allSettled` — nie obe.
 
 ### 7. Otestuj v dev móde
 

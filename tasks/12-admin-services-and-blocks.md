@@ -30,9 +30,37 @@ chceme ich vedieť zobraziť aj keď službu už neponukáme. Inak by FK constra
 Browser input `<input type="datetime-local">` ti vráti string ako `"2026-05-22T14:00"` —
 **bez timezone info**. `new Date(...)` ho interpretuje ako **lokálny čas browser-a**. Pre
 admin appku (Samuel pracuje vždy v Bratislave) to je v poriadku — ale na serveri to musíme
-konvertovať explicitne cez `buildBratislavaDateTime` z Tasku 08.
+konvertovať explicitne cez **Bratislavský timezone helper**, ktorý si pridáme.
+
+### Cheat sheet: tri reprezentácie ceny v appke
+
+Lebo to pribúda ako si vzpomínaš:
+
+| Vrstva | Reprezentácia | Príklad | Konverzia |
+|---|---|---|---|
+| DB | **integer cents** | `1850` | — (canonical) |
+| Form input | **number EUR** | `18.5` | `Math.round(eur * 100)` → cents |
+| Display | **string** | `"18,50 €"` | `formatPriceFromCents(cents)` |
+
+**Pravidlo**: vždy konvertuj na hraniciach (form submit, render). Vnútri kódu drž buď
+cents (server) alebo formatted string (UI). Nikdy nemiešaj.
 
 ## Tvoja úloha
+
+### 0. Pridaj helper na parsovanie datetime-local stringu
+
+V `src/lib/timezone.ts` pridaj funkciu:
+
+```ts
+/**
+ * Z "YYYY-MM-DDTHH:mm" (z <input type="datetime-local">) vrati Date v UTC.
+ * String interpretujeme ako Bratislavsky cas.
+ */
+export const parseLocalToBratislava = (str: string): Date => {
+  const [datePart, timePart] = str.split('T');
+  return buildBratislavaDateTime(datePart, timePart);
+};
+```
 
 ### 1. Nainstaluj shadcn Dialog (potrebujeme ho v service form-e)
 
@@ -342,7 +370,7 @@ import { db } from '@/db';
 import { blockedSlots } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { ok, fail, type ActionResult } from '@/lib/action-result';
-import { buildBratislavaDateTime } from '@/lib/timezone';
+import { parseLocalToBratislava } from '@/lib/timezone';
 
 const requireAdmin = async () => {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -356,19 +384,13 @@ const blockSchema = z.object({
   reason: z.string().max(200).optional().transform((v) => v?.trim() || null),
 });
 
-// Konvertuje "YYYY-MM-DDTHH:mm" (lokalny cas) na UTC Date cez Europe/Bratislava.
-const parseLocal = (str: string): Date => {
-  const [datePart, timePart] = str.split('T');
-  return buildBratislavaDateTime(datePart, timePart);
-};
-
 export const createBlock = async (input: z.infer<typeof blockSchema>): Promise<ActionResult> => {
   try {
     await requireAdmin();
     const parsed = blockSchema.parse(input);
 
-    const startTime = parseLocal(parsed.startLocal);
-    const endTime = parseLocal(parsed.endLocal);
+    const startTime = parseLocalToBratislava(parsed.startLocal);
+    const endTime = parseLocalToBratislava(parsed.endLocal);
 
     if (endTime <= startTime) return fail('Koniec musí byť po začiatku');
     if (startTime < new Date()) return fail('Nemôžeš blokovať čas v minulosti');

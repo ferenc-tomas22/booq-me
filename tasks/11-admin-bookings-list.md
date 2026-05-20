@@ -96,9 +96,9 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
   const params = await searchParams;
   const filter = params.filter ?? 'today';
 
-  // "Today" zacina TERAZ (nie startOfDay) — admin chce vidiet co este pride.
+  // "Today" zahrnuje aj rezervacie ktore prave prebiehaju (endTime >= now), nie len budúce.
+  // Samuel chce vidiet aj zákazníka, ktorého strihá práve teraz.
   const now = new Date();
-  let fromDate = now;
   let toDate = endOfDay(now);
 
   if (filter === 'week') toDate = endOfDay(addDays(now, 7));
@@ -108,7 +108,7 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
     .select({ booking: bookings, service: services })
     .from(bookings)
     .innerJoin(services, eq(bookings.serviceId, services.id))
-    .where(and(gte(bookings.startTime, fromDate), lte(bookings.startTime, toDate)))
+    .where(and(gte(bookings.endTime, now), lte(bookings.startTime, toDate)))
     .orderBy(bookings.startTime);
 
   return (

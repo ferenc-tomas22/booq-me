@@ -180,6 +180,8 @@ V `src/db/seed.ts` na koniec funkcie `seed` (pred `console.log('✅ Seed dokonč
 
 ```ts
 console.log('👤 Vytváram admin usera (ak este neexistuje)...');
+// `auth` lazy-importujeme aby seed (tsx mimo Next.js) neimportoval `next/headers` na
+// top-level — to by spadlo s "headers can only be called from Server Component".
 const { auth } = await import('../lib/auth');
 const { eq } = await import('drizzle-orm');
 const { user } = await import('./schema');

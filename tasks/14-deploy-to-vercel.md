@@ -52,6 +52,13 @@ pnpm db:generate
 Drizzle ti v `src/db/migrations/` vytvorí súbor `0000_xxx.sql` so všetkými `CREATE TABLE`
 príkazmi. Otvor ho a prejdi si ho — toto sa spustí na production DB.
 
+> ⚠️ **db:push vs db:migrate — nemiešať na tej istej DB.** Tvoja **dev DB** (Neon `main`
+> branch) má všetky tabuľky cez `pnpm db:push` — bez migration history. `pnpm db:migrate`
+> tam **NEPÚŠŤAJ**, lebo by sa pokúsil vytvoriť tabuľky ktoré už existujú a spadol by.
+>
+> Production DB (`prod` branch — vytvoríme za chvíľu) je prázdna → tam je `migrate`
+> bezpečný a správny.
+
 ### 2. Vytvor `src/db/migrate-runner.ts`
 
 ```ts
@@ -86,8 +93,6 @@ run().catch((err) => {
 V `src/db/admin-reset-password.ts`:
 
 ```ts
-import { auth } from '@/lib/auth';
-
 const run = async () => {
   const [email, newPassword] = process.argv.slice(2);
 
@@ -101,13 +106,13 @@ const run = async () => {
     process.exit(1);
   }
 
-  console.log(`🔐 Reseting password for ${email}...`);
+  console.log(`🔐 Resetujem heslo pre ${email}...`);
 
   try {
-    // Better Auth admin API: nastavi nove heslo pre usera podla emailu.
-    // Vytahneme user ID najprv:
+    // Vsetko lazy-importujeme aby tsx mimo Next.js neimportoval `next/headers` na top-level.
+    const { hashPassword } = await import('better-auth/crypto');
     const { db } = await import('@/db');
-    const { user } = await import('@/db/schema');
+    const { user, account } = await import('@/db/schema');
     const { eq } = await import('drizzle-orm');
 
     const [u] = await db.select().from(user).where(eq(user.email, email));
@@ -116,16 +121,16 @@ const run = async () => {
       process.exit(1);
     }
 
-    // Better Auth Context API
-    const ctx = await auth.$context;
-    const hash = await ctx.password.hash(newPassword);
-    const { account } = await import('@/db/schema');
+    // Better Auth pouziva scrypt hashing. `hashPassword` je oficialny helper
+    // z `better-auth/crypto` (dokumentovany public API, na rozdiel od internal $context).
+    const hash = await hashPassword(newPassword);
+
     await db
       .update(account)
       .set({ password: hash, updatedAt: new Date() })
       .where(eq(account.userId, u.id));
 
-    console.log('✅ Heslo zmenene.');
+    console.log('✅ Heslo zmenené.');
     process.exit(0);
   } catch (err) {
     console.error('❌ Reset zlyhal:', err);
