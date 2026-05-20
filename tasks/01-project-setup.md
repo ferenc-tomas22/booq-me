@@ -35,9 +35,10 @@ ale:
 ### 1. Skontroluj prerekvizity
 
 ```bash
-node --version    # malo by byť v20.0.0 alebo vyššie
-pnpm --version    # malo by byť v9.0.0 alebo vyššie
-gh --version      # GitHub CLI
+node --version       # malo by byť v20.0.0 alebo vyššie
+pnpm --version       # malo by byť v9.0.0 alebo vyššie
+gh --version         # GitHub CLI
+gh auth status       # musí ukázať "Logged in to github.com" — bez toho gh repo fork zlyhá
 ```
 
 Ak `pnpm` nemáš:
@@ -46,6 +47,7 @@ npm install -g pnpm
 ```
 
 Ak `gh` nemáš: [cli.github.com](https://cli.github.com) → install → `gh auth login`.
+Ak `gh auth status` hovorí "Logged out", spusti `gh auth login` najprv.
 
 ### 2. Vytvor si **vlastné GitHub repo** s týmto curriculom
 

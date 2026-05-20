@@ -83,7 +83,7 @@ Predtým než začneš, mal by si:
 
 | # | Task | Čas | Čo postavíš |
 |---|------|-----|-------------|
-| 01 | [Project setup](tasks/01-project-setup.md) | 45–60 min | Next.js appku s **tvojou témou** (shadcn.com/create) napojenou na GitHub |
+| 01 | [Project setup](tasks/01-project-setup.md) | 60–90 min | Next.js appku s **tvojou témou** (shadcn.com/create) napojenou na GitHub |
 | 02 | [Tailwind + shadcn/ui + base layout](tasks/02-tailwind-shadcn-layout.md) | 45 min | Hlavičku, pätu, font, základný layout |
 | 03 | [Public landing page](tasks/03-landing-page.md) | 60 min | Hero, "Naše služby", kontakt + cena formatter |
 

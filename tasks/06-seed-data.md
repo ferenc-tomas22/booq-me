@@ -74,8 +74,6 @@ const SAMUEL_SERVICES = [
 
 const seed = async () => {
   console.log('🧹 Mažem existujúce business dáta...');
-  // Pozor: NEMAŽEME user/session/account/verification tabuľky (Better Auth) — tie spravujeme
-  // v Tasku 10 cez signUpEmail. Inak by sme zakaždým mazali admin usera.
   await db.delete(bookings);
   await db.delete(blockedSlots);
   await db.delete(services);

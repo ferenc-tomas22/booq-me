@@ -124,8 +124,8 @@ const services = [
 
 > 💡 **Lucide nemá ikonu špeciálne pre bradu** — použili sme `Sparkles` (svieži look). Skús
 > si pozrieť [lucide.dev/icons](https://lucide.dev/icons) a vybrať čo sa ti páči viac.
-> Alternatívy mimo Lucide: [Tabler Icons](https://tabler.io/icons) má `Moustache`,
-> `Beard`.
+> Iné knižnice (Tabler, Phosphor) majú širší výber — keď budeš chcieť svoju vlastnú ikonu,
+> nájdi presný `import` v ich katalógu, nehádaj.
 
 **C) Kontakt**
 - Adresa salónu (vymysli si — napr. *"Hlavná 12, 811 01 Bratislava"*)

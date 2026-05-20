@@ -569,7 +569,7 @@ export const DeleteBlockButton = ({ id }: { id: string }) => {
 };
 ```
 
-### 5. Otestuj
+### 2. Otestuj
 
 ```bash
 pnpm dev
@@ -590,7 +590,7 @@ pnpm dev
 - Skús pridať blok s koncom pred začiatkom — dostaneš error toast
 - Odstráň blok → slot opäť voľný (po refreshi `/rezervacia`)
 
-### 6. Commit
+### 3. Commit
 
 ```bash
 git add .

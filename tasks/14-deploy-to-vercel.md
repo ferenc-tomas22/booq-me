@@ -110,9 +110,10 @@ const run = async () => {
 
   try {
     // Vsetko lazy-importujeme aby tsx mimo Next.js neimportoval `next/headers` na top-level.
+    // Pouzivame RELATIVE cesty (nie `@/`) — tsx mimo Nextu nevie o path aliasoch z tsconfig.
     const { hashPassword } = await import('better-auth/crypto');
-    const { db } = await import('@/db');
-    const { user, account } = await import('@/db/schema');
+    const { db } = await import('./index');
+    const { user, account } = await import('./schema');
     const { eq } = await import('drizzle-orm');
 
     const [u] = await db.select().from(user).where(eq(user.email, email));
@@ -175,7 +176,7 @@ V Neon Console:
 
 1. Choď na [vercel.com](https://vercel.com) → Sign Up cez GitHub
 2. **Add New → Project**
-3. Vyber `ferenc-tomas22/booq-me` z listu
+3. Vyber `<tvoj-username>/booq-me` (tvoj fork z Tasku 01) z listu
 4. **Framework preset**: Next.js (auto-detekuje)
 5. **Root directory**: nechaj prázdne (Next.js je v rooti)
 6. **Environment Variables** — pridaj **placeholder hodnoty** (po prvom deployi ich
@@ -354,11 +355,6 @@ Ak nie, skús znova.
 **Riešenie:** **Najčastejšia chyba** — `BETTER_AUTH_URL` v Vercel env vars je nesprávna.
 Skontroluj že je nastavená na real production URL (NIE `http://localhost:3000`). Po
 úprave **REDEPLOY**.
-
-**Problém:** Spustil som `pnpm db:seed` s production `DATABASE_URL` a teraz mam dva
-"Samuel" v admin tabulke
-**Riešenie:** Pred-update seedu (Task 06) — zmaze a recreate-ne business data, ale len
-checkuje existenciu admina. Stary admin zostal. Vymaz duplicitu manualne v Drizzle Studio.
 
 ## Pýtanie sa Claude Code
 

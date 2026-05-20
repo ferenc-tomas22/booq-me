@@ -408,9 +408,9 @@ má `type="submit"`.
 **Riešenie:** Skontroluj že používaš `buildBratislavaDateTime(date, time)` a NIE `new Date(...)`.
 Schema musí mať `timestamp({ withTimezone: true })`.
 
-**Problém:** `note` je `null` v Zod schema, ale `createBooking` input má `note?: string`
-**Riešenie:** V `onSubmit` konvertujem `null → undefined` (mám tam). Zod transformuje
-prázdny string a undefined na `null`, čo sa krásne hodí pre DB (nullable column).
+**Problém:** TypeScript hlási error pri `note` poli
+**Riešenie:** `CreateBookingInput.note` má byť typ `string | null | undefined` (akceptuje
+všetky tri). Zod transform v schéme znormalizuje na `null`, DB stĺpec je nullable.
 
 ## Pýtanie sa Claude Code
 
