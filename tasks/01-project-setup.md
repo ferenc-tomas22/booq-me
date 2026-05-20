@@ -1,22 +1,25 @@
 # Task 01 — Project Setup
 
 **Modul:** 1 — Setup & základy
-**Čas:** ~30 min
+**Čas:** ~45–60 min
 **Obtiažnosť:** ★☆☆☆☆
 
 ## Čo sa naučíš
 
-- Ako naškálovať novú Next.js appku cez CLI
+- Ako rozhodnúť o vzhľade a "feel-u" appky cez **shadcn.com/create** UI
 - Prečo používame `pnpm` namiesto `npm`
-- Ako napojiť lokálne repo na GitHub remote
+- Ako naškálovať Next.js projekt **s vlastnou témou** jedným príkazom
 - Ako spustiť dev server a otvoriť appku v prehliadači
 
-## Background — čo je to vlastne `create-next-app`?
+## Background — táto appka je tvoja
 
-`create-next-app` je oficiálny CLI nástroj od Vercel-u, ktorý ti vygeneruje **kostru** Next.js
-projektu — všetky konfiguračné súbory, závislosti, `package.json`, prvú stránku, atď.
-Bez neho by si musel ručne nainštalovať React, TypeScript, ESLint, Tailwind a nastaviť ich na
-seba — to by trvalo hodiny.
+Než začneš písať kód, musíš urobiť pár rozhodnutí o tom, **ako bude appka vyzerať**. Nemáš
+sa čo báť rozhodnúť zle — všetko sa dá neskôr zmeniť. Ale chcem aby si **vedome vybral**,
+nie aby si len kopíroval to čo ti niekto povie.
+
+shadcn.com má geniálny "Theme Studio" na adrese [ui.shadcn.com/create](https://ui.shadcn.com/create),
+kde si v live UI **klikneš čo chceš** — vyberieš template, štýl, farby, fonty, radius —
+a appka ti vygeneruje **jednu inštaláciu**, ktorá ti to celé pripraví.
 
 ### Prečo pnpm a nie npm?
 
@@ -25,102 +28,158 @@ ale:
 
 - **Rýchlejší** — má globálny cache, takže rovnaké balíky neinštaluje znova
 - **Šetrí miesto** — používa hardlinky namiesto duplikovania súborov
-- **Striktný** — nedovolí ti importovať balíky, ktoré nie sú v `package.json` (`npm` to
-  povolí kvôli "hoistingu")
-
-La-fly, ktorú sme videli, používa `pnpm`. Použijeme ho aj my.
+- **Striktný** — nedovolí ti importovať balíky, ktoré nie sú v `package.json`
 
 ## Tvoja úloha
 
-1. **Skontroluj že máš všetko nainštalované:**
+### 1. Skontroluj prerekvizity
 
-   ```bash
-   node --version    # malo by byť v20.0.0 alebo vyššie
-   pnpm --version    # malo by byť v9.0.0 alebo vyššie
-   gh --version      # GitHub CLI
-   ```
+```bash
+node --version    # malo by byť v20.0.0 alebo vyššie
+pnpm --version    # malo by byť v9.0.0 alebo vyššie
+gh --version      # GitHub CLI
+```
 
-   Ak `pnpm` nemáš:
-   ```bash
-   npm install -g pnpm
-   ```
+Ak `pnpm` nemáš:
+```bash
+npm install -g pnpm
+```
 
-2. **Naškáluj nový Next.js projekt** vo svojom Desktope (alebo kdekoľvek inde):
+Ak `gh` nemáš: [cli.github.com](https://cli.github.com) → install → `gh auth login`.
 
-   ```bash
-   cd ~/Desktop
-   pnpm create next-app@latest booq-me-app
-   ```
+### 2. Naclonuj prázdne repo `booq-me`
 
-   CLI sa ťa opýta niekoľko otázok. Odpovedz nasledovne:
+```bash
+cd ~/Desktop
+gh repo clone ferenc-tomas22/booq-me
+cd booq-me
+ls
+```
 
-   | Otázka | Odpoveď |
-   |--------|---------|
-   | Would you like to use TypeScript? | **Yes** |
-   | Would you like to use ESLint? | **Yes** |
-   | Would you like to use Tailwind CSS? | **Yes** |
-   | Would you like your code inside a `src/` directory? | **Yes** |
-   | Would you like to use App Router? | **Yes** |
-   | Would you like to use Turbopack? | **Yes** |
-   | Would you like to customize the import alias? | **No** (necháme defaultné `@/*`) |
+Mal by si vidieť `README.md` + priečinok `tasks/`. **V tomto priečinku vygenerujeme appku** —
+takže `package.json`, `src/`, `next.config.ts` pôjdu vedľa `tasks/`.
 
-   > 💡 **Prečo `src/`?** Bez `src/` by ti `app/`, `lib/`, `components/` priečinky ležali
-   > rovno v rooti vedľa `package.json`. So `src/` máš všetko pekne pohromade.
+### 3. Hraj sa s ui.shadcn.com/create
 
-3. **Vstúp do priečinka a spusti dev server:**
+Otvor [ui.shadcn.com/create](https://ui.shadcn.com/create) v prehliadači.
 
-   ```bash
-   cd booq-me-app
-   pnpm dev
-   ```
+Vľavo máš panel s nastaveniami. Pohraj sa ~15 minút:
 
-   Otvor [http://localhost:3000](http://localhost:3000) v prehliadači. Mal by si vidieť
-   defaultnú Next.js privítaciu stránku.
+| Nastavenie | Tvoja voľba | Čo to ovplyvní |
+|---|---|---|
+| **Style** | Nova / Default / New York / ... | Celkový vzhľad komponentov (zaokrúhlenie, padding, tieny) |
+| **Base Color** | Neutral / Stone / Zinc / Gray / Slate | Tón sivých — neutrálne pozadie a borders |
+| **Theme** | Neutral / hociaký color | Akcentová farba (tlačidlá, focus rings) |
+| **Heading** font | Inter / Geist / ... | Font pre nadpisy |
+| **Font** | Inter / Geist / ... | Font pre body text |
+| **Icon Library** | Lucide / Radix / Tabler | Štýl ikon |
+| **Radius** | 0 / 0.3 / 0.5 / 0.75 / 1.0 | Zaokrúhlenie rohov (0 = ostré, 1 = okrúhle) |
 
-4. **Zastav dev server** (`Ctrl+C` v termináli).
+Klikni **Shuffle** zopár krát aby si videl rôzne kombinácie. Skús si v hlave predstaviť:
+*"vyzeral by takto pánsky barber salón profesionálne?"*
 
-5. **Napoj lokálne repo na náš GitHub repo `booq-me`:**
+> 💡 **Pre kaderníctvo:** odporúčam tmavú, mužnú paletu — napríklad Style: **Nova**, Base
+> Color: **Neutral** alebo **Stone**, Theme: **Neutral** alebo **Orange** (akcent), Heading
+> font: **Geist** alebo **Inter**, Radius: **0.5**. Ale rozhodni ty.
 
-   Najprv pridaj GitHub remote (URL si vezmi zo svojho repa, pre teba je to
-   `https://github.com/ferenc-tomas22/booq-me.git`):
+### 4. Vyber template a base
 
-   ```bash
-   git remote add origin https://github.com/ferenc-tomas22/booq-me.git
-   ```
+Hore klikni **New Project** tab. Vyber:
 
-   > ⚠️ Pozor — `create-next-app` ti už urobil `git init`. Ak by si chcel skopírovať tasky
-   > z **tohto** repa (kde máš `tasks/` a `README.md`), potrebuješ ich zmergovať s tvojou novou
-   > Next.js appkou. To je trošku komplikované. Jednoduchší prístup: prekopíruj si subory
-   > `tasks/` + `README.md` ručne do tvojho nového projektu (alebo neprekopiruj a nechaj ich
-   > v separate repe — ako ti vyhovuje).
+- **Template:** Next.js
+- **Base:** Radix UI
+- Toggles: všetky nechaj OFF (žiadny monorepo, žiadne RTL)
 
-6. **Skontroluj že všetko sedí:**
+### 5. Skopíruj command a spusti ho v termináli
 
-   ```bash
-   git status            # mal by vidieť všetky súbory ako modified/untracked
-   git remote -v         # mal by vidieť origin → github.com/ferenc-tomas22/booq-me.git
-   pnpm dev              # appka stále musí fungovať
-   ```
+Dole uvidíš command typu:
 
-7. **Prvý commit a push:**
+```bash
+pnpm dlx shadcn@latest init --preset b0 --template next --base radix
+```
 
-   ```bash
-   git add .
-   git commit -m "task 01: initial Next.js scaffold"
-   git branch -M main
-   git push -u origin main
-   ```
+Kde `b0` je tvoj preset s tvojimi farbami/fontami.
 
-   Otvor GitHub repo v prehliadači — uvidíš svoje súbory.
+> ⚠️ **DÔLEŽITÉ:** zvoľ **pnpm** záložku (nie npm/yarn/bun).
+
+Skopíruj príkaz a spusti ho **v priečinku `~/Desktop/booq-me/`**:
+
+```bash
+cd ~/Desktop/booq-me
+# vlož svoj príkaz tu, napríklad:
+pnpm dlx shadcn@latest init --preset b0 --template next --base radix
+```
+
+CLI sa ťa opýta:
+
+| Otázka | Odpoveď |
+|--------|---------|
+| What is your project name? | `.` (bodka = aktuálny priečinok) |
+| Use TypeScript? | **Yes** |
+| Use App Router? | **Yes** |
+| Use `src/` directory? | **Yes** |
+| Customize import alias? | **No** |
+
+Inštalácia trvá ~1-2 min. Vytvorí ti:
+- `package.json` so všetkými dependencies (Next.js, React, Tailwind v4, shadcn dependencies)
+- `src/app/` so základnou stránkou
+- `src/components/ui/` s prvými shadcn komponentmi v **tvojej téme**
+- `components.json` (config shadcn)
+- `globals.css` s `@theme` blokom obsahujúcim tvoje farby a fonty
+
+### 6. Spusti dev server
+
+```bash
+pnpm dev
+```
+
+Otvor [http://localhost:3000](http://localhost:3000). Mal by si vidieť defaultnú Next.js
+stránku — ale už **v tvojej téme** (font, farby, radius).
+
+### 7. Skontroluj git stav
+
+```bash
+git status
+git remote -v
+```
+
+`origin` by mal smerovať na `https://github.com/ferenc-tomas22/booq-me.git` (pretože si
+naklonoval cez `gh repo clone`).
+
+Mal by si vidieť všetky nové súbory ako "untracked" — to je správne.
+
+### 8. Pridaj `.env.local` do `.gitignore`
+
+Otvor `.gitignore` a over že tam je tento riadok:
+
+```
+.env*.local
+```
+
+Ak nie, **pridaj ho hneď**. Spustíme to v Tasku 04 keď budeme mať databázu — dovtedy nemáš
+žiadne tajné kľúče.
+
+### 9. Prvý commit a push
+
+```bash
+git add .
+git commit -m "task 01: scaffold Next.js app via shadcn.com/create"
+git push
+```
+
+Otvor GitHub repo v prehliadači — uvidíš svoju appku.
 
 ## Acceptance Criteria
 
-- [ ] V termináli funguje `node --version` (v20+) a `pnpm --version` (v9+)
-- [ ] Príkaz `pnpm dev` v priečinku `booq-me-app/` spustí dev server na porte 3000
-- [ ] `http://localhost:3000` zobrazuje Next.js stránku (alebo už ňou upravenú, ak si experimentoval)
-- [ ] `git remote -v` ukazuje `origin` smerujúci na tvoj GitHub repo
-- [ ] Prvý commit je pushnutý na `main` branch
-- [ ] Na GitHube vidíš svoje súbory
+- [ ] `node --version` (v20+), `pnpm --version` (v9+), `gh --version` všetko funguje
+- [ ] Repo `booq-me` je naklonované do `~/Desktop/booq-me/`
+- [ ] V priečinku `booq-me/` máš `package.json`, `src/`, `next.config.ts` (vedľa pôvodných `tasks/` a `README.md`)
+- [ ] `pnpm dev` spustí dev server na porte 3000
+- [ ] `localhost:3000` ukazuje stránku **v tvojej zvolenej téme** (farby, font, radius zodpovedajú tomu čo si vybral)
+- [ ] `components.json` existuje
+- [ ] `src/components/ui/` obsahuje aspoň `button.tsx`
+- [ ] `.gitignore` obsahuje `.env*.local`
+- [ ] Prvý commit je pushnutý na `main` branch a vidíš ho na GitHube
 
 ## Tipy a riešenia problémov
 
@@ -128,27 +187,36 @@ La-fly, ktorú sme videli, používa `pnpm`. Použijeme ho aj my.
 **Riešenie:** Spusti `npm install -g pnpm` a otvor nový terminál.
 
 **Problém:** `Error: EACCES: permission denied` pri `npm install -g`
-**Riešenie:** Buď použiješ `sudo` (rýchle ale "škaredé"), alebo si naištaluješ `nvm` a budeš
-mať Node.js v user-space. Pýtaj sa Claude: *"Ako nainštalujem nvm na Macu?"*
+**Riešenie:** Buď `sudo` (rýchle ale "škaredé"), alebo si nainštaluj `nvm` a budeš mať
+Node.js v user-space. Pýtaj sa Claude: *"Ako nainštalujem nvm na Macu?"*
 
-**Problém:** `git push` ti pýta heslo a nepustí ťa dnu
-**Riešenie:** GitHub od 2021 nepoužíva heslá pre git operácie. Buď máš nastavený **SSH key**,
-alebo **personal access token**, alebo `gh CLI`. Najjednoduchšie: `gh auth login` ti to
-vyrieši v 30 sekundách.
+**Problém:** `pnpm dlx shadcn@latest init ...` hodí error že priečinok nie je prázdny
+**Riešenie:** shadcn `init --template` vyžaduje **prázdny** priečinok. Repo má `README.md`
++ `tasks/`. Riešenie: presuň ich dočasne von, spusti init, vráť ich:
+```bash
+mv README.md tasks ..
+pnpm dlx shadcn@latest init --preset b0 --template next --base radix
+mv ../README.md ../tasks .
+```
+Alternatíva: vytvor podpriečinok `app/`, init tam a Vercel root-directory nastavíš `app`.
 
-**Problém:** Dev server hodí error `Error: listen EADDRINUSE: address already in use :::3000`
-**Riešenie:** Niečo iné už beží na porte 3000. Buď to zastav, alebo spusti dev server na
-inom porte: `pnpm dev --port 3001`.
+**Problém:** `git push` ti pýta heslo
+**Riešenie:** GitHub od 2021 nepoužíva heslá. Spusti `gh auth login` — vyrieši to za teba.
+
+**Problém:** Dev server hodí `EADDRINUSE: address already in use :::3000`
+**Riešenie:** Iný proces ti drží port. Buď ho zastav, alebo `pnpm dev --port 3001`.
 
 ## Pýtanie sa Claude Code
 
-Dobré prompty pre tento task:
+Skús sa ho pýtať tieto **konkrétne** otázky (nie všeobecné "ako sa robí Next.js"):
 
-- *"Vysvetli mi, čo je rozdiel medzi App Routerom a Pages Routerom v Next.js."*
-- *"Po `pnpm create next-app` mi vznikol súbor `next.config.ts`. Čo robí každý kľúč v ňom?"*
-- *"Vysvetli mi obsah súboru `src/app/layout.tsx` a `src/app/page.tsx` — čo sa stane keď otvorím
-  `localhost:3000`?"*
+- *"Vysvetli mi, čo robí `pnpm dlx` v porovnaní s `pnpm install`. Kedy ktoré použiť?"*
+- *"Po inicializácii mi vznikol súbor `components.json`. Čo robí každý kľúč v ňom?"*
+- *"Otvor `src/app/layout.tsx` a `src/app/page.tsx` a vysvetli mi vzťah — čo sa rendruje
+  kedy?"*
+- *"Vybral som si Style: Nova, Theme: Neutral. Kde v kóde tieto voľby žijú? Ako ich neskôr
+  zmením?"*
 
 ## Ďalší krok
 
-➡️ [Task 02 — Tailwind v4 + shadcn/ui + base layout](02-tailwind-shadcn-layout.md)
+➡️ [Task 02 — Base layout + komponenty](02-tailwind-shadcn-layout.md)

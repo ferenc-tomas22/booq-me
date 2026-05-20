@@ -1,4 +1,4 @@
-# Task 02 — Tailwind v4 + shadcn/ui + Base Layout
+# Task 02 — Base Layout + Komponenty
 
 **Modul:** 1 — Setup & základy
 **Čas:** ~45 min
@@ -6,83 +6,59 @@
 
 ## Čo sa naučíš
 
-- Ako funguje **shadcn/ui** — knižnica komponentov, ktorá kopíruje kód do tvojho repa
-- Ako nastaviť custom font cez `next/font`
+- Ako funguje **shadcn/ui** — knižnica, ktorá kopíruje kód do tvojho repa
+- Ako pridať ďalšie shadcn komponenty (`button`, `card`, `input`, `label`)
 - Ako spraviť responzívny base layout (header, main, footer)
 - Rozdiel medzi **server component** a **client component**
 
 ## Background
 
-### Čo je shadcn/ui?
+### Čo je shadcn/ui — vlastne?
 
 Klasické komponentové knižnice (Material UI, Chakra, Ant Design) ti dajú komponenty ako
-**npm balíky**, ktoré importuješ. Problém: keď chceš niečo upraviť, musíš bojovať s ich API,
-overrideovať CSS a robiť hacky.
+**npm balíky**, ktoré importuješ. Problém: keď chceš niečo upraviť, musíš bojovať s ich API.
 
 **shadcn/ui** to robí naopak — komponenty ti **skopíruje priamo do tvojho repa** ako
-TypeScript súbory. Sú postavené na **Radix UI** (headless = bez vizuálu) + **Tailwind** (vizuál).
-Vďaka tomu si ich vieš donekonečna upravovať bez bojov.
+TypeScript súbory. Sú postavené na **Radix UI** (headless = bez vizuálu) + **Tailwind**
+(vizuál). Vďaka tomu si ich vieš donekonečna upravovať bez bojov.
 
-### Čo je `next/font`?
+V Tasku 01 ti `init` vytvoril aspoň `Button` komponent. Teraz pridáme ďalšie.
 
-Načítanie web-fontov je tricky — chceš ich rýchlo, bez "flash of unstyled text" (FOUT), a
-ideálne self-hostnuté. `next/font` ti to vyrieši: optimalizuje font, generuje CSS, a v build
-time downloadne font priamo do tvojho build outputu.
+### Server vs Client komponenty
+
+V Next.js App Routeri je **každý komponent default Server Component**:
+- Beží **na serveri**, nikdy v browseri
+- Vie sa priamo dostať k DB, env vars, filesystemu
+- Nemá `useState`, `useEffect`, `onClick` — nič interaktívne
+- Výsledok je čistý HTML poslaný do browsera
+
+**Client Component** (označený `'use client'` na začiatku súboru):
+- Beží v browseri (po hydrátii)
+- Má `useState`, `useEffect`, eventy
+- Nemôže priamo na DB
+
+Header a footer budú **server components** (žiadna interakcia). Neskôr v Tasku 07 spravíme
+prvý client component.
 
 ## Tvoja úloha
 
-### 1. Nastav shadcn/ui
+### 1. Pridaj ďalšie shadcn komponenty
 
-V root tvojej Next.js appky (`booq-me-app/`):
-
-```bash
-pnpm dlx shadcn@latest init
-```
-
-CLI sa ťa opýta:
-
-| Otázka | Odpoveď |
-|--------|---------|
-| Which style would you like to use? | **New York** |
-| Which color would you like to use as base color? | **Zinc** |
-| Would you like to use CSS variables for theming? | **Yes** |
-
-CLI ti:
-- vytvorí `components.json` (config shadcn)
-- aktualizuje `src/app/globals.css` (Tailwind imports + CSS variables)
-- vytvorí `src/lib/utils.ts` (utility `cn()` pre conditional classes)
-
-### 2. Nainštaluj prvé komponenty, ktoré budeš potrebovať
+Cez shadcn CLI pridáme komponenty, ktoré budeme potrebovať v ďalších taskoch:
 
 ```bash
-pnpm dlx shadcn@latest add button card input label
+pnpm dlx shadcn@latest add card input label
 ```
 
-Tieto sa pridajú do `src/components/ui/`. Pozri sa do týchto súborov — sú to obyčajné React
-komponenty s Tailwind triedami. Žiadna mágia.
+shadcn ich vloží do `src/components/ui/`. Pozri sa do týchto súborov — sú to obyčajné
+React komponenty s Tailwind triedami. Žiadna mágia.
 
-### 3. Nastav Inter font
+> 💡 **Skús zmeniť čokoľvek v `button.tsx`** — napríklad pridaj `text-uppercase` class. V
+> dev mode uvidíš zmenu okamžite. To je sila shadcn — komponenty sú **tvoje**.
 
-Otvor `src/app/layout.tsx`. Naimportuj `Inter` z `next/font/google`:
+### 2. Nastav metadata appky
 
-```tsx
-import { Inter } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-```
-
-A pridaj `inter.variable` na `<html>` tag:
-
-```tsx
-<html lang="sk" className={inter.variable}>
-```
-
-> 💡 **Prečo `lang="sk"`?** Pretože appka je v slovenčine. Browser a screen readery to potrebujú
-> vedieť — napríklad pre hyphenation a výslovnosť.
-
-### 4. Naprav metadata
-
-V `src/app/layout.tsx` zmeň `metadata`:
+Otvor `src/app/layout.tsx`. Zmeň `metadata`:
 
 ```tsx
 export const metadata: Metadata = {
@@ -91,9 +67,33 @@ export const metadata: Metadata = {
 };
 ```
 
-### 5. Spravme base layout
+A zmeň jazyk dokumentu:
 
-Vytvor `src/components/site-header.tsx`:
+```tsx
+<html lang="sk">
+```
+
+> 💡 **Prečo `lang="sk"`?** Pretože appka je v slovenčine. Browser a screen readery to
+> potrebujú vedieť — napríklad pre hyphenation, výslovnosť, a SEO.
+
+### 3. Skontroluj že fonty fungujú
+
+V `globals.css` (vytvoril ho `init` v Tasku 01) by si mal vidieť `@theme` blok ktorý
+obsahuje tvoj zvolený font:
+
+```css
+@theme {
+  --font-sans: ...;
+  --font-heading: ...;
+}
+```
+
+Ak ten blok nevidíš (rôzne verzie shadcn ho niekedy vynechajú), pridaj ho ručne. Sprav
+fontom čo si vybral na ui.shadcn.com/create.
+
+V `layout.tsx` by `<body>` mal mať `className="font-sans"` (alebo podobne). Skontroluj.
+
+### 4. Vytvor `src/components/site-header.tsx`
 
 ```tsx
 import Link from 'next/link';
@@ -113,7 +113,7 @@ export const SiteHeader = () => (
 );
 ```
 
-Vytvor `src/components/site-footer.tsx`:
+### 5. Vytvor `src/components/site-footer.tsx`
 
 ```tsx
 export const SiteFooter = () => (
@@ -125,14 +125,18 @@ export const SiteFooter = () => (
 );
 ```
 
-> 💡 **Prečo `arrow function` namiesto `function`?** Štýlová preferencia. La-fly to má vynútené
-> cez ESLint. Oba prístupy fungujú rovnako.
+> 💡 **Prečo arrow function namiesto `function`?** Štýlová preferencia — väčšina Next.js
+> kódu je arrow functions. Obe varianty fungujú rovnako, drž sa jednej v celej appke.
 
 ### 6. Zapoj header a footer do layoutu
 
 V `src/app/layout.tsx`:
 
 ```tsx
+import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
+
+// ... vnútri RootLayout, v `body`:
 <body className="font-sans antialiased">
   <SiteHeader />
   <main className="container mx-auto px-4 py-8">
@@ -153,46 +157,58 @@ Otvor `localhost:3000`. Mal by si vidieť:
 - V strede: defaultný Next.js content
 - Dole: copyright
 
-Klikni na "Rezervácia" — dostaneš **404**. To je správne, túto stránku zatiaľ nemáš.
+Klikni "Rezervácia" — dostaneš **404**. To je správne, túto stránku zatiaľ nemáš.
 
-### 8. Commit a push
+### 8. Vyskúšaj responsivitu
+
+V Chrome DevTools (F12) → toggle device toolbar → vyber iPhone 12 → reload. Layout by mal:
+- Header zostáva readable, nič nepretečie
+- Padding na bokoch nemizne
+
+### 9. Commit a push
 
 ```bash
 git add .
-git commit -m "task 02: tailwind, shadcn/ui setup, base layout with header/footer"
+git commit -m "task 02: shadcn components, base layout with header/footer, metadata"
 git push
 ```
 
 ## Acceptance Criteria
 
-- [ ] `components.json` existuje v rooti
-- [ ] `src/components/ui/` obsahuje `button.tsx`, `card.tsx`, `input.tsx`, `label.tsx`
-- [ ] V `layout.tsx` je `Inter` font importovaný cez `next/font/google`
-- [ ] `<html lang="sk">` a custom `metadata` (title + description)
-- [ ] Header (`SiteHeader`) a footer (`SiteFooter`) sú zobrazené na každej stránke
+- [ ] `src/components/ui/` obsahuje aspoň `button.tsx`, `card.tsx`, `input.tsx`, `label.tsx`
+- [ ] V `layout.tsx` je `<html lang="sk">` a tvoja `metadata` (title + description)
+- [ ] `globals.css` obsahuje `@theme` blok s `--font-sans` (a/alebo `--font-heading`)
+- [ ] Header (`SiteHeader`) a footer (`SiteFooter`) sa zobrazujú na každej stránke
 - [ ] `pnpm dev` beží bez errorov
-- [ ] Layout je responzívny (na mobile sa nič nerozbije — skús DevTools → Responsive mode)
+- [ ] Layout je responzívny — vyskúšaj iPhone 12 (390px), iPad (768px), desktop (1280px)
+- [ ] Žiadne `Error: ...` v console (warningy sú OK)
 
 ## Tipy a riešenia problémov
 
-**Problém:** Po `pnpm dlx shadcn@latest init` mi to hodí error o Tailwinde
-**Riešenie:** Skontroluj že `pnpm dev` aspoň raz prešiel pred init-om. shadcn potrebuje vidieť
-fungujúci Tailwind setup.
+**Problém:** Font sa nezobrazuje (vidím defaultný serif)
+**Riešenie:** Skontroluj `globals.css` že má `@theme { --font-sans: ... }`. Tailwind v4 si
+ho načíta automaticky. Bez toho bloku Tailwind nevie aký font použiť pre `font-sans` class.
 
-**Problém:** Font sa nezobrazuje (vidím defaultný serif font)
-**Riešenie:** Skontroluj že `inter.variable` je na `<html>` tag-u (NIE na `<body>`) a že máš
-`className="font-sans"` na `<body>`. Tailwind v4 si načíta `--font-sans` CSS premennú a aplikuje.
+**Problém:** `container mx-auto` nerobí čo má (nie je centrované)
+**Riešenie:** Tailwind v4 zmenil defaulty pre `container`. Skontroluj že máš `@import
+"tailwindcss";` v `globals.css` (mal by tam byť po inite).
 
-**Problém:** `container mx-auto` nerobí to čo má (nie je centrované)
-**Riešenie:** Tailwind v4 zmenil defaulty pre `container`. Skontroluj že v `globals.css` máš
-`@import "tailwindcss";` na začiatku.
+**Problém:** Hover na link nerobí underline
+**Riešenie:** `hover:underline` funguje len ak je dev server bežiaci a Tailwind ho vidí.
+Niekedy treba dev server restartnúť po pridaní novej class.
+
+**Problém:** `Cannot find module '@/components/site-header'`
+**Riešenie:** Skontroluj `tsconfig.json` že má `"paths": { "@/*": ["./src/*"] }`. shadcn
+init to nastaví, ale ak si si menil štruktúru, môže byť rozbité.
 
 ## Pýtanie sa Claude Code
 
-- *"Vysvetli mi rozdiel medzi server components a client components v Next.js. Header a footer
-  som spravil ako server components — je to OK?"*
-- *"Ako môžem ku komponentu shadcn `Button` pridať vlastný variant (napríklad `gold`)?"*
-- *"Tailwind v4 vraj funguje inak ako v3 — čo sa zmenilo?"*
+- *"Vysvetli mi rozdiel medzi server components a client components v Next.js. Header a
+  footer som spravil ako server components — je to OK?"*
+- *"Ako môžem ku komponentu shadcn `Button` pridať vlastný variant (napríklad `gold`)? Ukáž
+  mi krok po kroku."*
+- *"V `globals.css` mám `@theme` blok s mojimi farbami a fontmi. Ako presne ich Tailwind v4
+  premieňa na CSS triedy?"*
 
 ## Ďalší krok
 

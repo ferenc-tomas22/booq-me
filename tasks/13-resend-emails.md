@@ -1,7 +1,7 @@
 # Task 13 — Email Notifikácie cez Resend
 
 **Modul:** 5 — Emaily a deploy
-**Čas:** ~45 min
+**Čas:** ~45–60 min
 **Obtiažnosť:** ★★★☆☆
 
 ## Čo sa naučíš
@@ -9,47 +9,65 @@
 - Ako funguje **transakčný email** (SMTP vs API services)
 - Ako si nastaviť **Resend** účet a získať API key
 - Ako napísať **email templates** v React Email
-- Ako poslať email zo server action (best practice: fire-and-forget)
+- Ako poslať email zo server action (a prečo `fire-and-forget` na Vercele NEFUNGUJE)
 
 ## Background
 
 ### Prečo Resend a nie nodemailer + Gmail?
 
 - **Gmail SMTP** = rate limit 500/deň, často padá do spamu, autentifikácia komplikovaná
-- **Resend** = API key, free tier 100 emailov/deň + 3000/mesiac, dobrá deliverability, krásne docs
+- **Resend** = API key, free tier 100 emailov/deň + 3000/mesiac, dobrá deliverability,
+  krásne docs
 
-Pre MVP a malé business je Resend ideálny. Aj la-fly ho používa.
+Pre MVP a malé business je Resend ideálny.
 
 ### React Email
 
 Email templates písané v JSX. Pod kapotou sa to transpile-uje na (ošklivý ale univerzálny)
-HTML s inline štýlmi. Bez React Email by si musel písať `<table>` špageti, ktoré fungujú aj
-v Outlook 2007.
+HTML s inline štýlmi. Bez React Email by si musel písať `<table>` špageti, ktoré fungujú
+aj v Outlook 2007.
 
-### Fire-and-forget pattern
+### Pozor: `fire-and-forget` na Vercele NEFUNGUJE
 
-Posielanie emailu môže trvať 1–3 sekundy. Nechceš, aby tvoj `createBooking` na to čakal —
-zákazník vidí spinner zbytočne dlho. Riešenie:
+Naivný pattern v server action:
 
 ```ts
-// ❌ ZLE — booking response čaká na email
-await sendEmail(...);
-return ok(...);
-
-// ✅ DOBRE — booking response príde okamžite, email letí asynchronne
+// ❌ Funguje LOKALNE, ale na Vercele email nikdy nepride
 void sendEmail(...).catch(console.error);
 return ok(...);
 ```
 
-`void` povie TypeScriptu "viem že vraciam Promise, nepýtaj sa". `.catch()` zabezpečí, že
-exception nezhodí celý request.
+Vercel **serverless functions** fungujú tak, že akonáhle funkcia returneuje, runtime
+funkciu **zmrazí** — všetky pending promises sa zahodia. Lokálne (`pnpm dev`) to funguje,
+lebo Node.js proces beží ďalej; na Vercele nie.
+
+**Dve riešenia:**
+
+1. **Await pred returnom** (najjednoduchšie pre MVP):
+   ```ts
+   await sendEmail(...);
+   return ok(...);
+   ```
+   Cena: response sa predĺži o ~1s. Pre booking je to OK — user už klikol, čaká na potvrdenie.
+
+2. **`waitUntil` z Vercel funkcií** (production-grade):
+   ```ts
+   import { waitUntil } from '@vercel/functions';
+   waitUntil(sendEmail(...));
+   return ok(...);
+   ```
+   Toto **Vercelu povie, aby nezmrazil funkciu** kým promise nedobehne. Response je rýchla.
+
+V tomto tasku použijeme **`await`** (jednoduchšie, menej magic). V production grade apke
+prejdeme na `waitUntil`.
 
 ## Tvoja úloha
 
 ### 1. Zaregistruj sa na Resend
 
 1. Choď na [resend.com](https://resend.com) → Sign Up (cez GitHub)
-2. **Skip** verifikáciu domény zatiaľ — pre dev použijeme defaultnú doménu `onboarding@resend.dev`
+2. **Skip** verifikáciu domény zatiaľ — pre dev použijeme defaultnú doménu
+   `onboarding@resend.dev`
 3. **API Keys → Create API Key** → pomenuj "booq-me dev" → skopíruj kľúč
 
 ### 2. Pridaj do `.env.local`
@@ -57,7 +75,7 @@ exception nezhodí celý request.
 ```bash
 RESEND_API_KEY="re_..."
 RESEND_FROM_EMAIL="onboarding@resend.dev"
-ADMIN_EMAIL="samuel@booq-me.local"
+ADMIN_EMAIL="tvoj-realny-email@example.com"
 ```
 
 A do `.env.local.example`:
@@ -68,14 +86,17 @@ RESEND_FROM_EMAIL="onboarding@resend.dev"
 ADMIN_EMAIL=""
 ```
 
-> ⚠️ V production použiješ vlastnú doménu — `onboarding@resend.dev` ide často do spamu. Po
-> deploye nastavíš `RESEND_FROM_EMAIL="rezervacia@samuel-barber.sk"` a v Resend overíš
+> ⚠️ V production použiješ vlastnú doménu — `onboarding@resend.dev` ide často do spamu.
+> Po deploye nastavíš `RESEND_FROM_EMAIL="rezervacia@samuel-barber.sk"` a v Resend overíš
 > doménu cez DNS records.
+
+> 💡 Pre testovanie dovedna použij **svoj realny email** pre `ADMIN_EMAIL` — uvidíš tam
+> dorazené notifikácie.
 
 ### 3. Nainštaluj balíky
 
 ```bash
-pnpm add resend @react-email/components
+pnpm add resend @react-email/components @react-email/render
 pnpm add -D react-email
 ```
 
@@ -91,15 +112,16 @@ import {
 type Props = {
   customerName: string;
   serviceName: string;
-  dateTime: string; // už naformátovaný "22.05.2026 13:15"
-  priceEur: number;
-  durationMinutes: number;
+  dateTime: string; // uz naformatovany "22.05.2026 13:15"
+  priceFormatted: string; // uz naformatovana "18,00 €"
+  durationFormatted: string; // "45 min"
   salonName: string;
   salonAddress: string;
 };
 
 export const BookingConfirmationEmail = ({
-  customerName, serviceName, dateTime, priceEur, durationMinutes, salonName, salonAddress,
+  customerName, serviceName, dateTime, priceFormatted, durationFormatted,
+  salonName, salonAddress,
 }: Props) => (
   <Html>
     <Head />
@@ -113,8 +135,8 @@ export const BookingConfirmationEmail = ({
         <Section style={{ backgroundColor: '#f3f4f6', padding: 16, borderRadius: 6, marginTop: 16 }}>
           <Text style={{ margin: '4px 0' }}><strong>Služba:</strong> {serviceName}</Text>
           <Text style={{ margin: '4px 0' }}><strong>Termín:</strong> {dateTime}</Text>
-          <Text style={{ margin: '4px 0' }}><strong>Dĺžka:</strong> {durationMinutes} min</Text>
-          <Text style={{ margin: '4px 0' }}><strong>Cena:</strong> {priceEur} €</Text>
+          <Text style={{ margin: '4px 0' }}><strong>Dĺžka:</strong> {durationFormatted}</Text>
+          <Text style={{ margin: '4px 0' }}><strong>Cena:</strong> {priceFormatted}</Text>
         </Section>
 
         <Hr style={{ marginTop: 24 }} />
@@ -180,10 +202,12 @@ export default NewBookingAdminEmail;
 ### 5. Vytvor `src/lib/email.ts`
 
 ```ts
-import { Resend } from 'resend';
 import { render } from '@react-email/render';
+import { Resend } from 'resend';
 import { BookingConfirmationEmail } from '../../emails/booking-confirmation';
 import { NewBookingAdminEmail } from '../../emails/new-booking-admin';
+import { formatBratislavaDateTime } from './timezone';
+import { formatPriceFromCents, formatDuration } from './format';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -197,23 +221,20 @@ type SendCustomerProps = {
   customerName: string;
   serviceName: string;
   startTime: Date;
-  priceEur: number;
+  priceCents: number;
   durationMinutes: number;
 };
 
 export const sendBookingConfirmationToCustomer = async (props: SendCustomerProps) => {
-  const dateTime = props.startTime.toLocaleString('sk-SK', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Bratislava',
-  });
+  const dateTime = formatBratislavaDateTime(props.startTime);
 
   const html = await render(
     BookingConfirmationEmail({
       customerName: props.customerName,
       serviceName: props.serviceName,
       dateTime,
-      priceEur: props.priceEur,
-      durationMinutes: props.durationMinutes,
+      priceFormatted: formatPriceFromCents(props.priceCents),
+      durationFormatted: formatDuration(props.durationMinutes),
       salonName: SALON.name,
       salonAddress: SALON.address,
     }),
@@ -237,10 +258,7 @@ type SendAdminProps = {
 };
 
 export const sendNewBookingToAdmin = async (props: SendAdminProps) => {
-  const dateTime = props.startTime.toLocaleString('sk-SK', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Bratislava',
-  });
+  const dateTime = formatBratislavaDateTime(props.startTime);
 
   const html = await render(NewBookingAdminEmail({ ...props, dateTime }));
 
@@ -253,36 +271,49 @@ export const sendNewBookingToAdmin = async (props: SendAdminProps) => {
 };
 ```
 
+> 💡 **`await render(...)`** — od `@react-email/render` v1.x sa render stal async.
+> Vracia Promise<string>.
+
 ### 6. Zapoj emaily do `createBooking` action
 
-V `src/app/rezervacia/actions.ts`, pred `return ok(...)`:
+V `src/app/rezervacia/actions.ts`, **pred** `return ok(...)`:
 
 ```ts
-// Fire-and-forget — neblokuje response
-void sendBookingConfirmationToCustomer({
-  to: parsed.data.customerEmail,
-  customerName: parsed.data.customerName,
-  serviceName: service.name,
-  startTime,
-  priceEur: service.priceEur,
-  durationMinutes: service.durationMinutes,
-}).catch((err) => console.error('Failed to send customer email:', err));
+// Posli emaily SYNCHRONNE (Vercel zmrazi funkciu po returne, takze fire-and-forget by zlyhal).
+// Trvanie ~1s je akceptovatelne — user uz klikol, caka na potvrdenie tak ci tak.
+const emailPromises = [
+  sendBookingConfirmationToCustomer({
+    to: parsed.data.customerEmail,
+    customerName: parsed.data.customerName,
+    serviceName: service.name,
+    startTime,
+    priceCents: service.priceCents,
+    durationMinutes: service.durationMinutes,
+  }).catch((err) => console.error('Customer email failed:', err)),
 
-void sendNewBookingToAdmin({
-  customerName: parsed.data.customerName,
-  customerEmail: parsed.data.customerEmail,
-  customerPhone: parsed.data.customerPhone,
-  serviceName: service.name,
-  startTime,
-  note: parsed.data.note,
-}).catch((err) => console.error('Failed to send admin email:', err));
+  sendNewBookingToAdmin({
+    customerName: parsed.data.customerName,
+    customerEmail: parsed.data.customerEmail,
+    customerPhone: parsed.data.customerPhone,
+    serviceName: service.name,
+    startTime,
+    note: parsed.data.note,
+  }).catch((err) => console.error('Admin email failed:', err)),
+];
+
+await Promise.allSettled(emailPromises);
 ```
 
-A nezabudni importy hore:
+Nezabudni importy hore:
 
 ```ts
 import { sendBookingConfirmationToCustomer, sendNewBookingToAdmin } from '@/lib/email';
 ```
+
+> 💡 **`Promise.allSettled`** počká na všetky promises, **bez ohľadu** na to či zlyhajú.
+> Ak email zlyhá, rezervácia sa **stále** vytvorí (insert prebehol skôr) — user dostane
+> success, ale my si v logoch zaznamenáme problém. Lepšie než celá rezervácia zlyhá pre
+> zlý SMTP.
 
 ### 7. Otestuj v dev móde
 
@@ -290,8 +321,8 @@ import { sendBookingConfirmationToCustomer, sendNewBookingToAdmin } from '@/lib/
 pnpm dev
 ```
 
-- Spravi novú rezerváciu s **TVOJÍM emailom** (napr. `samuel@booq-me.local` má tvoj real
-  email v `.env.local`)
+- Sprav novú rezerváciu s **tvojím emailom**
+- Po submite počkaj ~2-3 sekundy
 - Skontroluj inbox — mal by tam byť mail z `onboarding@resend.dev`
 - Skontroluj aj `ADMIN_EMAIL` (admin notifikácia)
 
@@ -313,7 +344,7 @@ emaily a môžeš si pohrať s props.
 
 ```bash
 git add .
-git commit -m "task 13: resend email notifications for booking confirmations"
+git commit -m "task 13: resend email notifications for bookings (synchronous send, Vercel-safe)"
 git push
 ```
 
@@ -322,12 +353,14 @@ git push
 - [ ] Resend účet vytvorený, API key v `.env.local`
 - [ ] `emails/` priečinok s 2 templates
 - [ ] `src/lib/email.ts` exportuje 2 funkcie
-- [ ] `createBooking` action volá emaily fire-and-forget
+- [ ] `createBooking` action **awaituje** odoslanie emailov pred returnom
 - [ ] Po vytvorení rezervácie:
-  - [ ] Zákazník dostane potvrdzovací mail
+  - [ ] Zákazník dostane potvrdzovací email
   - [ ] Admin dostane notifikáciu o novej rezervácii
-- [ ] Email response čas pre `createBooking` je stále < 1s (emaily idú async)
-- [ ] V Resend dashboarde vidíš odoslané emaily
+- [ ] Email response čas pre `createBooking` je 1-3s (vidíš v Network tab DevTools)
+- [ ] V Resend dashboarde vidíš odoslané emaily so statusom "delivered"
+- [ ] Cena v emaili je `"18,00 €"`, termín v Bratislavskej zone (`"22.05.2026 13:15"`)
+- [ ] Ak email zlyhá (skús: pokaz `RESEND_API_KEY`), rezervácia sa stále vytvorí (nie crash)
 
 ## Tipy a riešenia problémov
 
@@ -335,7 +368,8 @@ git push
 **Riešenie:**
 1. Skontroluj Resend dashboard → Emails — je tam záznam?
 2. Ak je tam: skontroluj **spam folder** (`onboarding@resend.dev` často padá do spamu)
-3. Ak nie je: v Vercel/lokálne logy hľadaj `Failed to send`
+3. Ak nie je: v termináli kde beží `pnpm dev` hľadaj `Customer email failed:` alebo
+   `Admin email failed:`
 
 **Problém:** `Error: Missing required parameter: from`
 **Riešenie:** `RESEND_FROM_EMAIL` nie je v `.env.local` alebo má preklep. Vyžaduje formát
@@ -345,17 +379,18 @@ git push
 **Riešenie:** Pre dev musíš použiť `onboarding@resend.dev` ako `from`. Pre vlastnú doménu
 musíš overiť DNS (urobíme v Tasku 14 pri deployi).
 
-**Problém:** Emailové templates vyzerajú v Gmaile inak ako v Outlooku
-**Riešenie:** To je *normálne* — email clients renderujú HTML inak. Drž sa `@react-email/components`
-(`<Section>`, `<Container>`, ...) a nepoužívaj moderný CSS (grid, flexbox bez fallbacku).
+**Problém:** Emaily v Gmaile vyzerajú inak ako v Outlooku
+**Riešenie:** To je *normálne* — email clients renderujú HTML inak. Drž sa
+`@react-email/components` (`<Section>`, `<Container>`, ...) a nepoužívaj moderný CSS
+(grid, flexbox bez fallbacku).
 
 ## Pýtanie sa Claude Code
 
 - *"Vysvetli mi rozdiel medzi transakčným a marketing emailom. Pre rezervácie posielame
   transakčné — čo to znamená pre GDPR?"*
-- *"Ak Resend padne (downtime), moja rezervácia sa vytvorila ale email neprišiel. Ako spravím
-  retry mechanism (napríklad cez cron job)?"*
-- *"Ako prejdem z `onboarding@resend.dev` na vlastnú doménu? Aké DNS records potrebujem?"*
+- *"Vercel `waitUntil` — ako presne to funguje? Kedy ho použiť namiesto `await`?"*
+- *"Ak Resend padne (downtime), moja rezervácia sa vytvorila ale email neprišiel. Ako
+  spravím retry mechanism?"*
 
 ## Ďalší krok
 

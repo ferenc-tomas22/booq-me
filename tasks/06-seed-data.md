@@ -18,7 +18,7 @@
 - Production prvý deploy — napríklad zoznam služieb, ktoré od štartu existujú
 
 **Idempotent** = vieš to spustiť opakovane a výsledok je rovnaký. Pre nás to znamená: pred
-insertom najprv zmažme existujúce dáta.
+insertom najprv zmažeme existujúce dáta.
 
 ## Tvoja úloha
 
@@ -29,6 +29,9 @@ insertom najprv zmažme existujúce dáta.
 ```bash
 pnpm add -D tsx
 ```
+
+(V Tasku 04 sme `tsx` použili cez `pnpm dlx` — to bola jednorazová záležitosť. Teraz ho
+máme ako "dev dependency", takže príkaz je rýchlejší a vidíš ho v `package.json`.)
 
 ### 2. Vytvor `src/db/seed.ts`
 
@@ -41,36 +44,38 @@ const SAMUEL_SERVICES = [
     name: 'Pánsky strih',
     description: 'Strih nožnicami alebo strojčekom, umytie vlasov, styling, úprava obočia.',
     durationMinutes: 45,
-    priceEur: 18,
+    priceCents: 1800,
   },
   {
     name: 'Úprava brady',
     description: 'Úprava brady strojčekom, britvou, hot towel.',
     durationMinutes: 30,
-    priceEur: 15,
+    priceCents: 1500,
   },
   {
     name: 'Pánsky strih + úprava brady',
     description: 'Kompletná úprava: vlasy aj brada.',
     durationMinutes: 75,
-    priceEur: 30,
+    priceCents: 3000,
   },
   {
     name: 'Detský strih',
     description: 'Strih nožnicami alebo strojčekom, umytie, styling. Pre chlapcov do 12 rokov.',
     durationMinutes: 35,
-    priceEur: 18,
+    priceCents: 1800,
   },
   {
     name: 'Dlhé vlasy',
     description: 'Strih dlhých vlasov, umytie, styling.',
     durationMinutes: 75,
-    priceEur: 21,
+    priceCents: 2100,
   },
 ];
 
 const seed = async () => {
-  console.log('🧹 Mažem existujúce dáta...');
+  console.log('🧹 Mažem existujúce business dáta...');
+  // Pozor: NEMAŽEME user/session/account/verification tabuľky (Better Auth) — tie spravujeme
+  // v Tasku 10 cez signUpEmail. Inak by sme zakaždým mazali admin usera.
   await db.delete(bookings);
   await db.delete(blockedSlots);
   await db.delete(services);
@@ -106,7 +111,7 @@ pnpm db:seed
 
 Mal by si vidieť:
 ```
-🧹 Mažem existujúce dáta...
+🧹 Mažem existujúce business dáta...
 🌱 Vkladám služby...
 ✅ Seed dokončený.
 ```
@@ -118,7 +123,7 @@ pnpm db:studio
 ```
 
 Otvor [local.drizzle.studio](https://local.drizzle.studio) → tabuľka `services` → mal by si
-vidieť 5 riadkov.
+vidieť 5 riadkov. Cena je `1800`, `1500`, ... (integer centy).
 
 ### 6. Skús to spustiť ešte raz
 
@@ -133,23 +138,25 @@ začiatku, mal by si 10 → 15 → 20 riadkov.
 
 ```bash
 git add .
-git commit -m "task 06: seed script with Samuel's services"
+git commit -m "task 06: seed script with Samuel's services in cents"
 git push
 ```
 
 ## Acceptance Criteria
 
-- [ ] `pnpm add -D tsx` prebehlo
-- [ ] `src/db/seed.ts` existuje a obsahuje 5 služieb z booqme.sk Men's Hub
+- [ ] `pnpm add -D tsx` prebehlo, `tsx` je v `devDependencies` v `package.json`
+- [ ] `src/db/seed.ts` existuje a obsahuje 5 služieb s `priceCents`
 - [ ] `package.json` má skript `db:seed`
 - [ ] `pnpm db:seed` prebehlo bez errorov
-- [ ] V Drizzle Studio vidíš 5 služieb
+- [ ] V Drizzle Studio vidíš 5 služieb, cena je integer (napr. `1800`)
 - [ ] Druhé spustenie seed-u nezmnoží dáta (idempotent)
 
 ## Bonus
 
-- Pridaj 1–2 fake rezervácie do seedu pre testing (napríklad zajtra 10:00, pozajtra 14:00)
-- Pridaj 1 `blocked_slot` na nasledujúci víkend (dovolenka)
+- Pridaj 1–2 fake rezervácie do seedu pre testing (napríklad zajtra 10:00, pozajtra 14:00).
+  Pozor — `startTime` musí byť `Date` v UTC, použí `new Date('2026-05-21T08:00:00Z')`
+  (formát s `Z` znamená UTC).
+- Pridaj 1 `blockedSlot` na nasledujúci víkend (dovolenka)
 
 ## Tipy a riešenia problémov
 
@@ -157,9 +164,9 @@ git push
 **Riešenie:** Skontroluj že máš `--env-file=.env.local` v `package.json` skripte. Bez toho
 `tsx` nečíta env vars.
 
-**Problém:** `column "price_eur" is of type numeric but expression is of type integer`
-**Riešenie:** V Drizzle som spravil `$type<number>()`, takže môžeš dať `18` (integer). Ak by
-ti to hádzalo, skús `String(18)` alebo upravi schemu.
+**Problém:** `column "price_cents" violates not-null constraint`
+**Riešenie:** Pozri `SAMUEL_SERVICES` — všetkých 5 položiek musí mať `priceCents`. Skontroluj
+preklepy (`priceEur` z predošlej verzie?).
 
 **Problém:** Seed prebehne ale Drizzle Studio neukáže dáta
 **Riešenie:** Drizzle Studio cachuje. Refresh-ni browser tab (Cmd+R / F5).

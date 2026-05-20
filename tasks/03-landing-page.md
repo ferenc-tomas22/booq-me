@@ -8,8 +8,9 @@
 
 - Ako navrhnúť čitateľný landing page (hero, sekcie, CTA)
 - Ako používať shadcn `Card` komponent
-- Ako pracovať s ikonami cez **lucide-react**
+- Ako pracovať s ikonami cez **lucide-react** (alebo inú knižnicu, ktorú si si vybral)
 - Semantic HTML — `section`, `article`, `address`
+- Helper funkcia na formátovanie ceny (zo `centov` na `"18,00 €"`)
 
 ## Background
 
@@ -18,8 +19,19 @@
 2. **Pre koho** (páni, deti)
 3. **Čo má spraviť** (rezervovať si termín)
 
-V tomto tasku všetko **hardcodujeme** — služby napíšeme priamo do JSX. V tasku 07 to nahradíme
-dátami z databázy.
+V tomto tasku všetko **hardcodujeme** — služby napíšeme priamo do JSX. V tasku 07 to
+nahradíme dátami z databázy.
+
+### Centy vs eurá — prečo ukladáme cenu ako celé číslo?
+
+V profesionálnych appkách sa **peniaze nikdy neukladajú ako floating-point** (`18.00`).
+Floating-point má neistú reprezentáciu (`0.1 + 0.2 === 0.30000000000000004`). Štandard:
+
+- Ulož cenu ako **celé čísla v najmenšej jednotke** (centy pre EUR, fillér pre HUF, ...)
+- Zobraz cez **formatter** (`18,00 €`)
+
+Takže miesto `priceEur: 18.50` budeme používať `priceCents: 1850`. Helper na zobrazenie
+napíšeme za chvíľu.
 
 ## Tvoja úloha
 
@@ -29,12 +41,34 @@ dátami z databázy.
 pnpm add lucide-react
 ```
 
-[Lucide](https://lucide.dev) je sada vyše 1000 SVG ikon ako React komponenty. Použiješ ich
-ako `<Scissors className="h-5 w-5" />`.
+[Lucide](https://lucide.dev) je sada vyše 1000 SVG ikon ako React komponenty. Ak si si v
+Tasku 01 vybral inú knižnicu (Radix, Tabler), pridaj tú namiesto Lucide.
 
-### 2. Prepíš `src/app/page.tsx`
+### 2. Vytvor formatter pre cenu — `src/lib/format.ts`
 
-Stránka má mať 3 sekcie:
+```ts
+export const formatPriceFromCents = (cents: number): string => {
+  const euros = cents / 100;
+  return new Intl.NumberFormat('sk-SK', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(euros);
+};
+
+export const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+};
+```
+
+> 💡 **`Intl.NumberFormat`** je vstavané v JavaScripte (a browseroch). Vie formátovať čísla,
+> dátumy, meny podľa lokále. Pre Slovensko vyrobí `"18,00 €"` (čiarka ako desatinný oddelovač).
+
+### 3. Prepíš `src/app/page.tsx`
+
+Stránka má 3 sekcie:
 
 **A) Hero**
 - Veľký nadpis: "Pánsky barber v centre Bratislavy"
@@ -44,42 +78,52 @@ Stránka má mať 3 sekcie:
 **B) Služby**
 - Mriežka 5 kariet (Card komponent zo shadcn)
 - Každá karta: ikona + názov + dĺžka + cena + popis
-- Zoznam služieb (skopíruj z booqme.sk Men's Hub):
+- Zoznam služieb (skopíruj z booqme.sk Men's Hub) — **cena je v centoch**:
 
 ```ts
+import { Scissors, Beard, Sparkles, Baby, ChevronRight } from 'lucide-react';
+
 const services = [
   {
+    icon: Scissors,
     name: 'Pánsky strih',
-    duration: 45,
-    price: 18,
+    durationMinutes: 45,
+    priceCents: 1800,
     description: 'Strih nožnicami alebo strojčekom, umytie vlasov, styling, úprava obočia.',
   },
   {
+    icon: Sparkles, // brada
     name: 'Úprava brady',
-    duration: 30,
-    price: 15,
+    durationMinutes: 30,
+    priceCents: 1500,
     description: 'Úprava brady strojčekom, britvou, hot towel.',
   },
   {
+    icon: Sparkles,
     name: 'Pánsky strih + úprava brady',
-    duration: 75,
-    price: 30,
+    durationMinutes: 75,
+    priceCents: 3000,
     description: 'Kompletná úprava: vlasy aj brada.',
   },
   {
+    icon: Baby,
     name: 'Detský strih',
-    duration: 35,
-    price: 18,
+    durationMinutes: 35,
+    priceCents: 1800,
     description: 'Strih nožnicami alebo strojčekom, umytie, styling. Pre chlapcov do 12 rokov.',
   },
   {
+    icon: Scissors,
     name: 'Dlhé vlasy',
-    duration: 75,
-    price: 21,
+    durationMinutes: 75,
+    priceCents: 2100,
     description: 'Strih dlhých vlasov, umytie, styling.',
   },
 ];
 ```
+
+> ⚠️ Lucide nemá ikonu `Beard` — vyber si alternatívu (`Sparkles`, `Sunrise`, `Moustache`
+> nie je v Lucide, ale je v Tabler Icons). Hraj sa.
 
 **C) Kontakt**
 - Adresa salónu (vymysli si — napr. *"Hlavná 12, 811 01 Bratislava"*)
@@ -87,21 +131,52 @@ const services = [
 - Otváracie hodiny (Po–Pi 9:00–19:00, So 9:00–14:00)
 - Použí `<address>` element
 
-### 3. Štýluj cez Tailwind
+### 4. Štýluj cez Tailwind
 
 Niekoľko princípov:
 
 - **Vertikálne medzery medzi sekciami**: `py-16` (64px hore aj dole)
 - **Hero**: `text-center`, veľký nadpis `text-5xl md:text-6xl font-bold`
 - **Grid pre služby**: `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6`
-- **Cards**: použí shadcn `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`
+- **Cards**: shadcn `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`
 - **CTA tlačidlo**: shadcn `Button` so `size="lg"`
 
-### 4. Vytvor stub stránku `/rezervacia`
-
-Aby ti CTA z hero linku niekde smeroval, vytvor `src/app/rezervacia/page.tsx`:
+Príklad jednej karty:
 
 ```tsx
+import { formatPriceFromCents, formatDuration } from '@/lib/format';
+
+// ...vo vnútri grid:
+{services.map((service) => {
+  const Icon = service.icon;
+  return (
+    <Card key={service.name}>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-3">
+            <Icon className="h-6 w-6" />
+            <CardTitle>{service.name}</CardTitle>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold">{formatPriceFromCents(service.priceCents)}</div>
+            <div className="text-sm text-muted-foreground">
+              {formatDuration(service.durationMinutes)}
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">{service.description}</p>
+      </CardContent>
+    </Card>
+  );
+})}
+```
+
+### 5. Vytvor stub stránku `/rezervacia`
+
+```tsx
+// src/app/rezervacia/page.tsx
 export default function RezervaciaPage() {
   return (
     <div className="py-16 text-center">
@@ -114,39 +189,41 @@ export default function RezervaciaPage() {
 }
 ```
 
-### 5. Pozri si výsledok
+### 6. Pozri si výsledok
 
 ```bash
 pnpm dev
 ```
 
 Otvor `localhost:3000`. Skús:
-- Či sa stránka peknú vyzerá na desktope
-- Otvor DevTools → toggle device toolbar (iPhone) → či sa nič nerozbije na mobile
-- Klikni na "Rezervovať termín" — dostaneš sa na `/rezervacia` stub
+- Či sa stránka pekne vyzerá na desktope
+- DevTools → toggle device toolbar (iPhone) → či sa nič nerozbije na mobile
+- Klik na "Rezervovať termín" → dostaneš sa na `/rezervacia` stub
+- Skontroluj že cena sa zobrazí ako `"18,00 €"` (slovenský formát s čiarkou)
 
-### 6. Commit
+### 7. Commit
 
 ```bash
 git add .
-git commit -m "task 03: landing page with hero, services grid, contact info"
+git commit -m "task 03: landing page with hero, services grid, contact, price formatter"
 git push
 ```
 
 ## Acceptance Criteria
 
-- [ ] `pnpm add lucide-react` prebehlo, ikony fungujú
-- [ ] `src/app/page.tsx` obsahuje **hero** sekciu s nadpisom, podnadpisom a CTA tlačidlom
-- [ ] **Služby** sekcia má 5 kariet s ikonou, názvom, dĺžkou (`45 min`), cenou (`18 €`) a popisom
-- [ ] **Kontakt** sekcia má adresu (v `<address>` element), telefón a otváracie hodiny
+- [ ] `pnpm add lucide-react` prebehlo
+- [ ] `src/lib/format.ts` exportuje `formatPriceFromCents` a `formatDuration`
+- [ ] `src/app/page.tsx` má **hero** sekciu s nadpisom, podnadpisom a CTA tlačidlom
+- [ ] **Služby** sekcia má 5 kariet, každá s ikonou, názvom, **cenou ako `"18,00 €"`** a popisom
+- [ ] **Kontakt** sekcia má adresu (v `<address>` element), telefón, otváracie hodiny
 - [ ] Klik na CTA z hera ťa zoberie na `/rezervacia` (stub stránka)
-- [ ] Layout je responzívny — vyskúšaj iPhone (375px), iPad (768px), desktop (1280px)
+- [ ] Layout je responzívny — iPhone 12, iPad, desktop
 - [ ] Žiadne errory v console
 
 ## Bonus
 
 - Pridaj sekciu "Hodnotenia" (3–5 mock recenzií s menom, hodnotením `★★★★★` a textom)
-- Pridaj Google Maps embed do kontaktu
+- Pridaj Google Maps embed do kontaktu (cez `<iframe>` z Google Maps share linku)
 - Pridaj smooth scroll pre anchor linky (`html { scroll-behavior: smooth; }` v `globals.css`)
 
 ## Tipy a riešenia problémov
@@ -155,19 +232,23 @@ git push
 **Riešenie:** Skontroluj že máš `md:grid-cols-2 lg:grid-cols-3` — bez breakpoint prefixov by
 to zostalo `grid-cols-1` všade.
 
-**Problém:** Ikony lucide-react nevyzerajú ako mali — sú obrovské
-**Riešenie:** Default veľkosť SVG ikony je veľká. Pridaj `className="h-5 w-5"` (alebo `h-6 w-6`).
+**Problém:** Ikony lucide-react sú obrovské
+**Riešenie:** Default `<svg>` je veľký. Pridaj `className="h-5 w-5"` (alebo `h-6 w-6`).
+
+**Problém:** Cena sa zobrazuje ako `1800` namiesto `18,00 €`
+**Riešenie:** Volaš `formatPriceFromCents(service.priceCents)`? Bez formatter funkcie ti
+nič nedá `18,00 €`.
 
 **Problém:** Hero text je zalomený na zlých miestach na mobile
-**Riešenie:** Použí `<br className="hidden md:block" />` pre zalomenie len na desktope, alebo
-necháj prirodzené zalomenie a hraj sa s `max-w-2xl mx-auto`.
+**Riešenie:** Skús `max-w-2xl mx-auto` na hero container — text sa zúži na čitateľnú šírku.
 
 ## Pýtanie sa Claude Code
 
 - *"Ukáž mi, ako napísať Hero sekciu pre kaderníctvo s Tailwindom, ktorá vyzerá moderne a
-  professional. Nepoužívaj komponenty knižníc, len Tailwind triedy."*
+  profesionálne. Nepoužívaj komponenty knižníc, len Tailwind triedy."*
 - *"Aký je rozdiel medzi `<section>`, `<article>` a `<div>`? Kedy ktorý použiť?"*
-- *"Daj mi tip, ako spraviť 'glass morphism' efekt pre Hero (priesvitné pozadie s blur)."*
+- *"`Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR' })` — ako presne to
+  funguje? Vie spraviť rovnaké pre HUF, USD, CZK?"*
 
 ## Ďalší krok
 

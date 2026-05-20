@@ -1,7 +1,7 @@
 # Task 12 — Admin: Služby + Blokovanie Termínov
 
 **Modul:** 4 — Admin
-**Čas:** ~60 min
+**Čas:** ~60–90 min
 **Obtiažnosť:** ★★★☆☆
 
 ## Čo sa naučíš
@@ -22,10 +22,23 @@ Samuel potrebuje vedieť:
 - **Hard delete** = `DELETE FROM services WHERE id = ...`. Záznam zmizne.
 - **Soft delete** = `UPDATE services SET status = 'INACTIVE'`. Záznam zostáva.
 
-Pre nás je **soft delete** lepší — historické rezervácie majú referenciu na službu, a chceme
-ich vedieť zobraziť aj keď službu už neponukáme. Inak by FK constraint blokol delete.
+Pre nás je **soft delete** lepší — historické rezervácie majú referenciu na službu, a
+chceme ich vedieť zobraziť aj keď službu už neponukáme. Inak by FK constraint blokol delete.
+
+### `<input type="datetime-local">` a timezone
+
+Browser input `<input type="datetime-local">` ti vráti string ako `"2026-05-22T14:00"` —
+**bez timezone info**. `new Date(...)` ho interpretuje ako **lokálny čas browser-a**. Pre
+admin appku (Samuel pracuje vždy v Bratislave) to je v poriadku — ale na serveri to musíme
+konvertovať explicitne cez `buildBratislavaDateTime` z Tasku 08.
 
 ## Tvoja úloha
+
+### 1. Nainstaluj shadcn Dialog (potrebujeme ho v service form-e)
+
+```bash
+pnpm dlx shadcn@latest add dialog
+```
 
 ### Časť A: Správa služieb
 
@@ -34,32 +47,40 @@ ich vedieť zobraziť aj keď službu už neponukáme. Inak by FK constraint blo
 ```ts
 'use server';
 
-import { db } from '@/db';
-import { services } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
-import { ok, fail, type ActionResult } from '@/lib/action-result';
-import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { z } from 'zod';
+import { db } from '@/db';
+import { services } from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { ok, fail, type ActionResult } from '@/lib/action-result';
 
 const requireAdmin = async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new Error('Unauthorized');
 };
 
+// Cena vstupuje v eurach (napr. "18.50"), v DB ulozime cents (1850).
 const serviceSchema = z.object({
   name: z.string().min(2).max(100),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).optional().transform((v) => v?.trim() || null),
   durationMinutes: z.coerce.number().int().min(5).max(480),
   priceEur: z.coerce.number().min(0).max(9999),
 });
+
+const toCents = (eur: number): number => Math.round(eur * 100);
 
 export const createService = async (input: z.infer<typeof serviceSchema>): Promise<ActionResult> => {
   try {
     await requireAdmin();
     const parsed = serviceSchema.parse(input);
-    await db.insert(services).values(parsed);
+    await db.insert(services).values({
+      name: parsed.name,
+      description: parsed.description,
+      durationMinutes: parsed.durationMinutes,
+      priceCents: toCents(parsed.priceEur),
+    });
     revalidatePath('/admin/sluzby');
     revalidatePath('/rezervacia');
     revalidatePath('/');
@@ -76,7 +97,12 @@ export const updateService = async (
   try {
     await requireAdmin();
     const parsed = serviceSchema.parse(input);
-    await db.update(services).set(parsed).where(eq(services.id, id));
+    await db.update(services).set({
+      name: parsed.name,
+      description: parsed.description,
+      durationMinutes: parsed.durationMinutes,
+      priceCents: toCents(parsed.priceEur),
+    }).where(eq(services.id, id));
     revalidatePath('/admin/sluzby');
     revalidatePath('/rezervacia');
     revalidatePath('/');
@@ -111,8 +137,10 @@ export const toggleServiceStatus = async (id: string): Promise<ActionResult> => 
 import { db } from '@/db';
 import { services } from '@/db/schema';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { formatPriceFromCents, formatDuration } from '@/lib/format';
 import { ServiceFormDialog } from './service-form-dialog';
 import { ToggleStatusButton } from './toggle-status-button';
 
@@ -140,8 +168,8 @@ export default async function AdminServicesPage() {
           {allServices.map((service) => (
             <TableRow key={service.id}>
               <TableCell className="font-medium">{service.name}</TableCell>
-              <TableCell>{service.durationMinutes} min</TableCell>
-              <TableCell>{service.priceEur} €</TableCell>
+              <TableCell>{formatDuration(service.durationMinutes)}</TableCell>
+              <TableCell>{formatPriceFromCents(service.priceCents)}</TableCell>
               <TableCell>
                 <Badge variant={service.status === 'ACTIVE' ? 'default' : 'secondary'}>
                   {service.status === 'ACTIVE' ? 'Aktívna' : 'Neaktívna'}
@@ -210,6 +238,8 @@ export const ServiceFormDialog = (props: Props) => {
     });
   };
 
+  // Pre edit mod: konvertuj centy spat na eura pre input (cena zobrazena uzivatelovi v eurach).
+  const defaultPriceEur = props.mode === 'edit' ? props.service.priceCents / 100 : 15;
   const defaults = props.mode === 'edit' ? props.service : null;
 
   return (
@@ -246,7 +276,7 @@ export const ServiceFormDialog = (props: Props) => {
               <Input
                 id="priceEur" name="priceEur" type="number" step="0.5" required
                 min={0}
-                defaultValue={defaults?.priceEur ?? 15}
+                defaultValue={defaultPriceEur}
               />
             </div>
           </div>
@@ -297,12 +327,6 @@ export const ToggleStatusButton = ({ serviceId, currentStatus }: Props) => {
 };
 ```
 
-Nainštaluj Dialog ak ešte nemáš:
-
-```bash
-pnpm dlx shadcn@latest add dialog
-```
-
 ### Časť B: Blokovanie termínov
 
 #### B1. Server actions `src/app/admin/blokovanie/actions.ts`
@@ -310,14 +334,15 @@ pnpm dlx shadcn@latest add dialog
 ```ts
 'use server';
 
-import { db } from '@/db';
-import { blockedSlots } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
-import { ok, fail, type ActionResult } from '@/lib/action-result';
-import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { z } from 'zod';
+import { db } from '@/db';
+import { blockedSlots } from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { ok, fail, type ActionResult } from '@/lib/action-result';
+import { buildBratislavaDateTime } from '@/lib/timezone';
 
 const requireAdmin = async () => {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -325,18 +350,28 @@ const requireAdmin = async () => {
 };
 
 const blockSchema = z.object({
-  startTime: z.string().datetime(),
-  endTime: z.string().datetime(),
-  reason: z.string().max(200).optional(),
+  // Format z <input type="datetime-local">: "YYYY-MM-DDTHH:mm"
+  startLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Neplatny format datumu'),
+  endLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Neplatny format datumu'),
+  reason: z.string().max(200).optional().transform((v) => v?.trim() || null),
 });
+
+// Konvertuje "YYYY-MM-DDTHH:mm" (lokalny cas) na UTC Date cez Europe/Bratislava.
+const parseLocal = (str: string): Date => {
+  const [datePart, timePart] = str.split('T');
+  return buildBratislavaDateTime(datePart, timePart);
+};
 
 export const createBlock = async (input: z.infer<typeof blockSchema>): Promise<ActionResult> => {
   try {
     await requireAdmin();
     const parsed = blockSchema.parse(input);
-    const startTime = new Date(parsed.startTime);
-    const endTime = new Date(parsed.endTime);
+
+    const startTime = parseLocal(parsed.startLocal);
+    const endTime = parseLocal(parsed.endLocal);
+
     if (endTime <= startTime) return fail('Koniec musí byť po začiatku');
+    if (startTime < new Date()) return fail('Nemôžeš blokovať čas v minulosti');
 
     await db.insert(blockedSlots).values({ startTime, endTime, reason: parsed.reason });
     revalidatePath('/admin/blokovanie');
@@ -363,13 +398,15 @@ export const deleteBlock = async (id: string): Promise<ActionResult> => {
 #### B2. Stránka `src/app/admin/blokovanie/page.tsx`
 
 ```tsx
+import { gte } from 'drizzle-orm';
 import { db } from '@/db';
 import { blockedSlots } from '@/db/schema';
-import { gte } from 'drizzle-orm';
-import { format } from 'date-fns';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { formatBratislavaDateTime } from '@/lib/timezone';
 import { BlockForm } from './block-form';
 import { DeleteBlockButton } from './delete-block-button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default async function AdminBlocksPage() {
   const all = await db
@@ -404,8 +441,8 @@ export default async function AdminBlocksPage() {
             <TableBody>
               {all.map((b) => (
                 <TableRow key={b.id}>
-                  <TableCell>{format(b.startTime, 'dd.MM.yyyy HH:mm')}</TableCell>
-                  <TableCell>{format(b.endTime, 'dd.MM.yyyy HH:mm')}</TableCell>
+                  <TableCell>{formatBratislavaDateTime(b.startTime)}</TableCell>
+                  <TableCell>{formatBratislavaDateTime(b.endTime)}</TableCell>
                   <TableCell>{b.reason ?? '—'}</TableCell>
                   <TableCell><DeleteBlockButton id={b.id} /></TableCell>
                 </TableRow>
@@ -439,12 +476,12 @@ export const BlockForm = () => {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const startTime = new Date(String(formData.get('start'))).toISOString();
-    const endTime = new Date(String(formData.get('end'))).toISOString();
+    const startLocal = String(formData.get('start'));
+    const endLocal = String(formData.get('end'));
     const reason = String(formData.get('reason') ?? '');
 
     startTransition(async () => {
-      const result = await createBlock({ startTime, endTime, reason });
+      const result = await createBlock({ startLocal, endLocal, reason });
       if (!result.ok) return toast.error(result.error);
       toast.success('Blokovanie pridané');
       (e.target as HTMLFormElement).reset();
@@ -510,72 +547,79 @@ export const DeleteBlockButton = ({ id }: { id: string }) => {
 };
 ```
 
-### 6. Otestuj
+### 5. Otestuj
 
 ```bash
 pnpm dev
 ```
 
 **Služby:**
-- `/admin/sluzby` zobrazí všetky služby
-- "Pridať službu" → vyplň formulár → mali by si vidieť v tabuľke + v `/` landingu
-- "Upraviť" → zmeň cenu → uvidíš novú cenu okamžite
+- `/admin/sluzby` zobrazí všetky služby (cena ako `"18,00 €"`)
+- "Pridať službu" → vyplň formulár (cena v eurach, napr. `18.5`) → mali by si vidieť v
+  tabuľke a aj v `/` landingu, cena formátovaná správne
+- "Upraviť" → zmeň cenu z `18.5` na `20` → uvidíš `20,00 €` okamžite
 - "Deaktivovať" → služba sa stane neaktívna → v `/rezervacia` flow ju neuvidíš
 
 **Blokovanie:**
-- `/admin/blokovanie` zobrazí blokovania
+- `/admin/blokovanie` zobrazí blokovania (čas v Bratislavskej zone)
 - Pridaj blok na zajtra 14:00 – 15:00, dôvod "Test"
 - Choď na `/rezervacia` → vyber krátku službu → zajtra 14:00 by mal byť **zablokovaný**
-- Odstráň blok → slot opäť voľný
+- Skús pridať blok do minulosti — dostaneš error toast
+- Skús pridať blok s koncom pred začiatkom — dostaneš error toast
+- Odstráň blok → slot opäť voľný (po refreshi `/rezervacia`)
 
-### 7. Commit
+### 6. Commit
 
 ```bash
 git add .
-git commit -m "task 12: admin CRUD for services and time blocking"
+git commit -m "task 12: admin CRUD for services (cents) and time blocking (TZ-safe)"
 git push
 ```
 
 ## Acceptance Criteria
 
 - [ ] `/admin/sluzby` zobrazí tabuľku služieb s tlačidlami "Pridať/Upraviť/Deaktivovať"
-- [ ] Pridanie/úprava služby funguje cez dialog formulár
+- [ ] Pridanie služby — zadám cenu `18.5` → v DB sa uloží `priceCents: 1850`
+- [ ] Cena v admin tabuľke aj na landingu sa zobrazí ako `"18,50 €"`
 - [ ] Deaktivovaná služba sa neobjaví v `/rezervacia` flow
-- [ ] `/admin/blokovanie` zobrazí budúce blokovania
+- [ ] `/admin/blokovanie` zobrazí budúce blokovania, časy v Bratislavskej zone
+- [ ] Blokovanie sa ukladá v UTC v DB (overiteľné v Drizzle Studio — `+00`)
+- [ ] Pridanie blokovania v minulosti → error
+- [ ] End ≤ start → error
 - [ ] Pridanie blokovania zablokuje sloty v rezervačnom flow
-- [ ] Odstránenie blokovania uvoľní sloty
+- [ ] Odstránenie blokovania uvoľní sloty (po refreshi)
 - [ ] Všetky server actions majú `requireAdmin()` guard
-- [ ] Validácia: cena ≥ 0, dĺžka 5–480 min, end > start pri blokovaní
 
 ## Bonus
 
 - "Celý deň" toggle pri blokovaní (auto-fill 00:00–23:59)
-- "Týždeň dovolenky" preset (od/do pre celé dni)
+- "Týždeň dovolenky" preset (vyber dátum od/do, automaticky bloky pre cele dni)
 - Pri službe ukáž počet aktívnych budúcich rezervácií (s warningom pri deaktivácii)
 
 ## Tipy a riešenia problémov
 
-**Problém:** `datetime-local` input nezobrazuje hodnotu v slovenčine
-**Riešenie:** Formát `datetime-local` je vždy `YYYY-MM-DDTHH:MM` (ISO). Browser ho zobrazí
-podľa lokále, takže to závisí od OS nastavenia.
+**Problém:** Zadám cenu `18.5` a v DB sa uloží `1849` namiesto `1850`
+**Riešenie:** Floating point — `18.5 * 100 = 1849.9999...`. Použiť `Math.round(eur * 100)`
+(mám tam to).
 
-**Problém:** Po `revalidatePath('/rezervacia')` sa kalendár stále ukazuje staré sloty
-**Riešenie:** Kalendár fetchuje sloty cez **server action z client komponentu** — to nie je
-súčasťou page cache. Treba refresh stránky alebo selection inej date triggerne nový fetch.
+**Problém:** `datetime-local` input ukazuje hodnotu v 24h formáte
+**Riešenie:** To je výchozí formát na väčšine OS-ov a v slovenčine je to v poriadku.
 
-**Problém:** Pri vytváraní blokovania v minulosti to nezamietne — môžem vytvoriť blok na
-včera
-**Riešenie:** Pridaj do `createBlock` check `if (startTime < new Date()) return fail('Nemôžeš
-blokovať minulosť')`.
+**Problém:** Pridám blok na zajtra 14:00, v `/rezervacia` flow je stále voľný
+**Riešenie:** Refresh stránky `/rezervacia` (kalendár sa nemení automaticky). Alebo zmeň
+dátum a vráť sa naspať.
+
+**Problém:** Edit form ukazuje cenu ako `1850` namiesto `18.5`
+**Riešenie:** V `defaultPriceEur` ja delim cents na 100. Skontroluj.
 
 ## Pýtanie sa Claude Code
 
-- *"Aký je rozdiel medzi soft delete (status flag) a hard delete (DROP)? Kedy ktoré použiť
-  a aké sú implikácie pre FK constraints?"*
+- *"Aký je rozdiel medzi soft delete (status flag) a hard delete (DROP)? Kedy ktoré
+  použiť a aké sú implikácie pre FK constraints?"*
 - *"Mám 5 server actions pre admin a všetky volajú `requireAdmin()`. Ako to spravím
   elegantnejšie (DRY)? Napríklad cez wrapper funkciu."*
-- *"Môj `datetime-local` input vracia string `2026-05-22T14:00` bez timezone. Ako to spravne
-  konvertovať na UTC pre DB?"*
+- *"`Math.round(18.5 * 100)` mi dáva `1850`. Prečo `Math.round` a nie `Math.floor`? Čo by
+  sa pokazilo?"*
 
 ## Ďalší krok
 

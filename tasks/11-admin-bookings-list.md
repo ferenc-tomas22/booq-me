@@ -1,7 +1,7 @@
 # Task 11 — Admin: Zoznam Rezervácií
 
 **Modul:** 4 — Admin
-**Čas:** ~45 min
+**Čas:** ~45–60 min
 **Obtiažnosť:** ★★★☆☆
 
 ## Čo sa naučíš
@@ -14,7 +14,7 @@
 ## Background
 
 Admin chce vidieť:
-- **Dnes** — čo má dnes pre Samuela urobiť
+- **Dnes** — čo má dnes pre Samuela urobiť (od **teraz** do konca dňa)
 - **Tento týždeň** — výhľad
 - **Všetky budúce** — celkový prehľad
 
@@ -22,6 +22,10 @@ Plus tlačidlo "Zrušiť" pri každej rezervácii.
 
 Filter zachovávame v URL (`/admin?filter=today`) — rovnako ako booking flow, aby refresh
 nestratil kontext.
+
+> 💡 **Časy v admine** — všetky datetime v admine zobrazujeme v `Europe/Bratislava` cez
+> helper z Tasku 08. Žiadne `format(date, 'HH:mm')` — to by ukázalo lokálny čas servera
+> (UTC na Vercele).
 
 ## Tvoja úloha
 
@@ -36,13 +40,13 @@ pnpm dlx shadcn@latest add table badge alert-dialog
 ```ts
 'use server';
 
-import { db } from '@/db';
-import { bookings } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { ok, fail, type ActionResult } from '@/lib/action-result';
-import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { db } from '@/db';
+import { bookings } from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { ok, fail, type ActionResult } from '@/lib/action-result';
 
 const requireAdmin = async () => {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -58,7 +62,7 @@ export const cancelBooking = async (bookingId: string): Promise<ActionResult> =>
       .set({ canceled: true })
       .where(eq(bookings.id, bookingId));
     revalidatePath('/admin');
-    revalidatePath('/rezervacia'); // aby sa slot uvoľnil pre nových
+    revalidatePath('/rezervacia'); // aby sa slot uvoľnil v page-level cache
     return ok(undefined);
   } catch (err) {
     return fail((err as Error).message);
@@ -73,15 +77,17 @@ export const cancelBooking = async (bookingId: string): Promise<ActionResult> =>
 ### 3. Vytvor `src/app/admin/page.tsx` — zoznam rezervácií
 
 ```tsx
+import Link from 'next/link';
+import { and, eq, gte, lte } from 'drizzle-orm';
+import { endOfDay, addDays } from 'date-fns';
 import { db } from '@/db';
 import { bookings, services } from '@/db/schema';
-import { and, eq, gte, lte } from 'drizzle-orm';
-import { startOfDay, endOfDay, addDays, format } from 'date-fns';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
+import { formatBratislavaDateTime } from '@/lib/timezone';
+import { formatPriceFromCents, formatDuration } from '@/lib/format';
 import { CancelButton } from './cancel-button';
 
 type Props = { searchParams: Promise<{ filter?: 'today' | 'week' | 'all' }> };
@@ -90,8 +96,9 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
   const params = await searchParams;
   const filter = params.filter ?? 'today';
 
+  // "Today" zacina TERAZ (nie startOfDay) — admin chce vidiet co este pride.
   const now = new Date();
-  let fromDate = startOfDay(now);
+  let fromDate = now;
   let toDate = endOfDay(now);
 
   if (filter === 'week') toDate = endOfDay(addDays(now, 7));
@@ -117,7 +124,7 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
 
       {rows.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">
-          Žiadne rezervácie pre tento filter.
+          Žiadne nadchádzajúce rezervácie pre tento filter.
         </p>
       ) : (
         <Table>
@@ -135,12 +142,12 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
             {rows.map(({ booking, service }) => (
               <TableRow key={booking.id}>
                 <TableCell className="font-medium">
-                  {format(booking.startTime, 'dd.MM.yyyy HH:mm')}
+                  {formatBratislavaDateTime(booking.startTime)}
                 </TableCell>
                 <TableCell>
                   {service.name}
                   <div className="text-xs text-muted-foreground">
-                    {service.durationMinutes} min · {service.priceEur} €
+                    {formatDuration(service.durationMinutes)} · {formatPriceFromCents(service.priceCents)}
                   </div>
                 </TableCell>
                 <TableCell>{booking.customerName}</TableCell>
@@ -226,7 +233,8 @@ export const CancelButton = ({ bookingId }: { bookingId: string }) => {
         <AlertDialogHeader>
           <AlertDialogTitle>Zrušiť rezerváciu?</AlertDialogTitle>
           <AlertDialogDescription>
-            Túto akciu nie je možné vrátiť. Slot sa uvoľní pre ďalších zákazníkov.
+            Túto akciu nie je možné vrátiť. Termín sa uvoľní pre nových zákazníkov pri ďalšom
+            výbere dátumu v rezervačnom flow.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -239,6 +247,15 @@ export const CancelButton = ({ bookingId }: { bookingId: string }) => {
 };
 ```
 
+> 💡 **Pozor na cache pre kalendár**: `revalidatePath('/rezervacia')` v server action
+> invaliduje **page-level cache** stránky `/rezervacia`. Ale samotný kalendár vo flow
+> fetchuje voľné sloty **per-date cez server action** z client componentu — to nie je
+> page cache, takže sa neaktualizuje automaticky.
+>
+> Pre používateľa to znamená: ak má otvorenú stránku s vybraným dátumom a slot bol zrušený,
+> uvidí ho ako "zaplnený" kým neprehadzne dátum (alebo neobnoví stránku). Pre MVP OK; pre
+> lepší UX by sme pridali `revalidateTag` alebo SWR.
+
 ### 5. Otestuj
 
 ```bash
@@ -249,8 +266,10 @@ pnpm dev
 - Mal by si vidieť tabuľku rezervácií (alebo prázdny stav)
 - Ak nemáš žiadne rezervácie, vytvor pár cez `/rezervacia` flow
 - Skús filtre: Dnes / Týždeň / Všetky
+- Skús zmeniť URL ručne na `?filter=all` — funguje
 - Klik "Zrušiť" → confirmation dialog → potvrď → toast + tabuľka aktualizovaná
-- Skontroluj v `/rezervacia` že zrušený slot je opäť voľný
+- Vrať sa do `/rezervacia` na ten istý slot (vyber tú istú službu a dátum) → slot by mal
+  byť opäť voľný (page bola revalidatovaná)
 
 ### 6. Commit
 
@@ -262,12 +281,14 @@ git push
 
 ## Acceptance Criteria
 
-- [ ] `/admin` zobrazuje tabuľku rezervácií s filtrami (Dnes / Týždeň / Všetky)
+- [ ] `/admin` zobrazuje tabuľku nadchádzajúcich rezervácií s filtrami (Dnes / Týždeň / Všetky)
+- [ ] Filter `today` ukazuje len rezervácie od **teraz**, nie od polnoci
 - [ ] Filter sa zachová v URL (`?filter=week`)
+- [ ] Časy sú zobrazené v Bratislavskej zone (overiteľné: porovnaj s tým čo si pri rezervácii zadal)
 - [ ] Každá rezervácia ma stav badge (Aktívna / Zrušená)
 - [ ] Klik "Zrušiť" otvorí confirmation dialog
 - [ ] Po zrušení sa toast objaví a tabuľka sa obnoví
-- [ ] Zrušená rezervácia uvoľní svoj slot v `/rezervacia` flow
+- [ ] Otvorenie `/rezervacia` znova ponuká uvoľnený slot (po refreshi stránky)
 - [ ] `cancelBooking` má auth guard (skús ho zavolať z incognito okna bez session — error)
 
 ## Bonus
@@ -279,23 +300,22 @@ git push
 ## Tipy a riešenia problémov
 
 **Problém:** `Table` komponent nie je responzívny (na mobile sa tlačí)
-**Riešenie:** Obal table do `<div className="overflow-x-auto">`. Alebo na mobile zobraz Card layout.
+**Riešenie:** Obal table do `<div className="overflow-x-auto">`.
 
 **Problém:** Po cancel sa tabuľka neaktualizuje
-**Riešenie:** `router.refresh()` zopakuje server render. Bez neho zostane v cache. Alternatíva:
-`revalidatePath('/admin')` v server action (mám tam to) — Next.js to refreshne automaticky pri ďalšom navigation, ale `router.refresh()` to spraví hneď.
+**Riešenie:** `router.refresh()` zopakuje server render. Bez neho zostane v cache.
 
-**Problém:** `BigInt` error pri join-e
-**Riešenie:** Nepoužívaš `BigInt`, takže by to nemalo vznikať. Ak hej, skontroluj že
-`priceEur` má `$type<number>()` v schéme.
+**Problém:** Filter `today` ukáže prázdny zoznam, hoci viem že na zajtra mám booking
+**Riešenie:** `today` filter má `toDate = endOfDay(now)` — to je dnešný koniec dňa. Zajtra
+nepatrí do "dnes". Pozri filter `week` alebo `all`.
 
 ## Pýtanie sa Claude Code
 
 - *"Vysvetli mi rozdiel medzi `revalidatePath('/admin')` v server action a `router.refresh()`
-  na klientovi. Kedy ktoré použiť?"*
-- *"Môj filter `today` ukáže aj rezervácie v minulosti (ráno). Ako to zmeniť aby ukazoval len
-  budúce rezervácie?"*
+  na klientovi. Prečo používame oba?"*
 - *"Ako spravím expandable row v shadcn Table (klik na riadok ukáže detaily)?"*
+- *"Môj cancel button funguje, ale po zrušení vidím `Žiadne nadchádzajúce rezervácie` —
+  prečo? Ako to opraviť?"*
 
 ## Ďalší krok
 

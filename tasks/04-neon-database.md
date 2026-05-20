@@ -15,9 +15,10 @@
 
 ### Čo je Neon?
 
-[Neon](https://neon.tech) je **serverless Postgres** — klasický PostgreSQL, ale s týmito vychytávkami:
+[Neon](https://neon.tech) je **serverless Postgres** — klasický PostgreSQL, ale s týmito
+vychytávkami:
 
-- **Auto-suspend**: keď databáza nedostáva queries, automaticky sa "vypne" (0€ za compute)
+- **Auto-suspend**: keď databáza nedostáva queries, automaticky sa "vypne" (0 € za compute)
 - **Branchovateľné**: ako git! Vieš si urobiť branch DB pre testing
 - **Free tier**: 0.5 GB storage + 1 compute hour denne — pre náš MVP úplne dosť
 
@@ -35,12 +36,12 @@ URL v tvare:
 postgres://user:password@host:port/dbname?sslmode=require
 ```
 
-Je to ako URL pre webovú stránku, ale namiesto `https://` máme `postgres://`. Obsahuje **heslo
-k tvojej databáze**, takže:
+Je to ako URL pre webovú stránku, ale namiesto `https://` máme `postgres://`. Obsahuje
+**heslo k tvojej databáze**, takže:
 
 - ❌ **NIKDY** ho necommit do gitu
 - ❌ **NIKDY** ho neuploaduj na Pastebin
-- ❌ **NIKDY** ho nepriamy do JSX kódu
+- ❌ **NIKDY** ho nedávaj priamo do JSX kódu
 
 Patrí do **environment variables** — premenných, ktoré žijú mimo kódu.
 
@@ -65,15 +66,15 @@ Klikni "Create project".
 
 ### 3. Ulož si connection string
 
-Po vytvorení ti Neon ukáže obrazovku s connection details. **Skopíruj si connection string**
-(vyzerá ako `postgres://neondb_owner:abc123@ep-...neon.tech/neondb?sslmode=require`).
+Po vytvorení ti Neon ukáže obrazovku s connection details. **Skopíruj si connection
+string** (vyzerá ako `postgres://neondb_owner:abc123@ep-...neon.tech/neondb?sslmode=require`).
 
-> 💡 **Branche**: Neon ti hneď vytvoril dve branche — `main` (production) a v Tasku 14 si pridáme
-> ešte `dev`. Teraz použijeme `main`.
+> 💡 **Branche**: Neon ti hneď vytvoril branch `main` (production). V Tasku 14 si pridáme
+> ešte `prod` branch (Vercel) a `main` zostane na dev. Teraz použijeme čo máme.
 
 ### 4. Vytvor `.env.local` v Next.js projekte
 
-V root tvojej Next.js appky (`booq-me-app/`) vytvor súbor `.env.local`:
+V root tvojho projektu (`booq-me/`) vytvor súbor `.env.local`:
 
 ```bash
 DATABASE_URL="postgres://neondb_owner:abc123@ep-...neon.tech/neondb?sslmode=require"
@@ -92,8 +93,8 @@ Otvor `.gitignore` v rooti. Mal by tam byť riadok:
 .env*.local
 ```
 
-Ak nie, pridaj ho. **Toto je kritické** — ak commitneš connection string do gitu, hocikto si
-môže pripojiť na tvoju DB.
+Ak nie, pridaj ho. **Toto je kritické** — ak commitneš connection string do gitu, hocikto
+si môže pripojiť na tvoju DB.
 
 > 🔍 **Skontroluj že to funguje:**
 > ```bash
@@ -103,8 +104,8 @@ môže pripojiť na tvoju DB.
 
 ### 6. Pridaj `.env.local.example`
 
-Ostatní devs (alebo budúci ty) potrebujú vedieť, **aké env vars majú existovať**, ale nie ich
-hodnoty. Vytvor `.env.local.example`:
+Ostatní devs (alebo budúci ty) potrebujú vedieť, **aké env vars majú existovať**, ale nie
+ich hodnoty. Vytvor `.env.local.example`:
 
 ```bash
 DATABASE_URL="postgres://user:password@host/dbname?sslmode=require"
@@ -112,18 +113,17 @@ DATABASE_URL="postgres://user:password@host/dbname?sslmode=require"
 
 Tento súbor commitni do gitu — slúži ako šablóna.
 
-### 7. Nainštaluj postgres driver
+### 7. Nainštaluj postgres driver + Drizzle
 
 Drizzle (ktorý použijeme v Tasku 05) potrebuje pod kapotou driver:
 
 ```bash
-pnpm add postgres
+pnpm add drizzle-orm postgres
 pnpm add -D drizzle-kit
-pnpm add drizzle-orm
 ```
 
 > 💡 **Prečo `postgres` (postgres.js)?** Je to moderný, rýchly Postgres driver pre Node.js,
-> ktorý funguje skvele aj v serverless prostredí (Vercel). La-fly ho používa tiež.
+> ktorý funguje skvele aj v serverless prostredí (Vercel).
 
 ### 8. Otestuj pripojenie
 
@@ -144,8 +144,8 @@ export const db = drizzle(client);
 A quick test script `src/db/test-connection.ts`:
 
 ```ts
-import { db } from './index';
 import { sql } from 'drizzle-orm';
+import { db } from './index';
 
 const test = async () => {
   const result = await db.execute(sql`SELECT NOW() as time`);
@@ -159,20 +159,18 @@ void test();
 Spusti:
 
 ```bash
-pnpm dlx tsx src/db/test-connection.ts
-```
-
-Ak vidíš `✅ DB connected. Server time: ...` — máš pripojenie.
-
-Ak vidíš `Error: DATABASE_URL is not set` — `.env.local` nie je načítaný. `tsx` automaticky
-nečíta `.env.local`. Riešenie:
-
-```bash
 pnpm dlx tsx --env-file=.env.local src/db/test-connection.ts
 ```
 
-> 💡 **Prečo to v `next dev` funguje aj bez `--env-file`?** Next.js si automaticky načíta
-> `.env.local`. Skripty mimo Next.js to musia robiť explicitne.
+> 💡 **Prečo `pnpm dlx tsx`?** `dlx` = "download and execute" — stiahne `tsx` jednorazovo
+> a spustí. Nezostane nainštalované. V Tasku 06 si `tsx` nainštalujeme natrvalo ako
+> dev-dependency, takže príkazy budú kratšie.
+
+> 💡 **`--env-file=.env.local`** — `tsx` (na rozdiel od `next dev`) **automaticky nečíta**
+> `.env.local`. Musíš mu povedať explicitne. Bez toho dostaneš `Error: DATABASE_URL is
+> not set`.
+
+Ak vidíš `✅ DB connected. Server time: [{ time: '2026-05-20T...' }]` — máš pripojenie.
 
 ### 9. Vymaž test súbor
 
@@ -186,7 +184,7 @@ rm src/db/test-connection.ts
 
 ```bash
 git add .
-git commit -m "task 04: neon db setup, drizzle dependencies, .env scaffolding"
+git commit -m "task 04: neon db setup, drizzle dependencies, env scaffolding"
 git push
 ```
 
@@ -196,34 +194,37 @@ git push
 - [ ] `.env.local` obsahuje `DATABASE_URL`
 - [ ] `.env.local` **NIE JE** v gite (`git status` ho nevypisuje)
 - [ ] `.env.local.example` JE v gite ako šablóna
-- [ ] `pnpm add postgres drizzle-orm`, `pnpm add -D drizzle-kit` prebehlo
+- [ ] `pnpm add drizzle-orm postgres && pnpm add -D drizzle-kit` prebehlo
 - [ ] `src/db/index.ts` existuje a exportuje `db`
 - [ ] Test pripojenia prebehol s `✅ DB connected`
+- [ ] Test súbor je zmazaný
 
 ## Tipy a riešenia problémov
 
 **Problém:** `Error: getaddrinfo ENOTFOUND ep-...neon.tech`
-**Riešenie:** Skontroluj connection string — pravdepodobne máš preklep alebo chýba `https://`
-nikde. Skopíruj ho znova z Neon Console.
+**Riešenie:** Skontroluj connection string — pravdepodobne máš preklep. Skopíruj ho znova
+z Neon Console.
 
 **Problém:** `Error: connect ECONNREFUSED`
-**Riešenie:** Neon má **suspend mode** — keď databáza dlho neaktívna, vypne sa. Prvý connect
-ju "zobudí" za ~1 sekundu. Skús ešte raz.
+**Riešenie:** Neon má **suspend mode** — keď je databáza dlho neaktívna, vypne sa. Prvý
+connect ju "zobudí" za ~1 sekundu. Skús ešte raz.
 
 **Problém:** `Error: password authentication failed for user`
-**Riešenie:** Heslo v connection stringu je zlé. V Neon Console choď do `Settings → Reset
+**Riešenie:** Heslo v connection stringu je zlé. V Neon Console → `Settings → Reset
 password` a vygeneruj nový string.
 
 **Problém:** Vidím `.env.local` v `git status`!
-**Riešenie:** Pridaj `.env*.local` do `.gitignore` HNEĎ. Ak si ho už commitol, treba ho vyňať
-z gitu cez `git rm --cached .env.local`, commitnúť, a (ak si pushol na public repo)
+**Riešenie:** Pridaj `.env*.local` do `.gitignore` HNEĎ. Ak si ho už commitol, treba ho
+vyňať z gitu cez `git rm --cached .env.local`, commitnúť, a (ak si pushol na public repo)
 **zmeniť heslo k DB** v Neone.
 
 ## Pýtanie sa Claude Code
 
-- *"Vysvetli mi, prečo Next.js načítava `.env.local` automaticky, ale `tsx` nie. Ako sa to dá zariadiť?"*
+- *"Vysvetli mi, prečo Next.js načítava `.env.local` automaticky, ale `tsx` nie. Ako sa to
+  dá zariadiť?"*
 - *"Aký je rozdiel medzi `process.env.X` na serveri a v browseri?"*
-- *"Čo by sa stalo, keby som ten connection string nechtiac pushol na GitHub? Ako sa to dá zachrániť?"*
+- *"Čo by sa stalo, keby som ten connection string nechtiac pushol na GitHub? Ako sa to dá
+  zachrániť?"*
 
 ## Ďalší krok
 

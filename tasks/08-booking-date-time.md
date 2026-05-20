@@ -1,15 +1,20 @@
 # Task 08 — Booking Flow: Kalendár + Čas
 
 **Modul:** 3 — Rezervačný flow
-**Čas:** ~90 min
+**Čas:** ~90–120 min
 **Obtiažnosť:** ★★★★☆
 
 ## Čo sa naučíš
 
 - Čo je **Server Action** a ako sa volá z client komponentu
-- Ako pracovať s **date-fns** (sčítavanie hodín, formátovanie, porovnávanie)
+- Ako pracovať s **dátumami a časovými zónami** (date-fns + date-fns-tz)
 - Ako počítať **voľné time sloty** z working hours mínus rezervácie a blocked slots
 - Ako použiť shadcn `Calendar` komponent
+- Pattern `useTransition` pre pending state
+
+> ⚠️ **Tento task je hustý.** Tri nové koncepty (Server Actions, useTransition,
+> useEffect dependency gotcha) + time math + Calendar. Plánuj si ho na **dve sedenia**:
+> najprv 1+2 (utility + business logic), potom 3+4 (server action + Calendar). Nevadí.
 
 ## Background
 
@@ -20,10 +25,11 @@ Pred Next.js 14 keď si chcel mutovať dáta zo strany clienta, musel si:
 2. Z clienta volať `fetch('/api/...')`
 3. Manuálne parseovať request, response, JSON, errory
 
-**Server Actions** to skracujú: napíšeš funkciu s `'use server'` direktívou a importuješ ju
-v client komponente. Next.js to pod kapotou prevedie na HTTP request.
+**Server Actions** to skracujú: napíšeš funkciu s `'use server'` direktívou a importuješ
+ju v client komponente. Next.js to pod kapotou prevedie na HTTP request.
 
 ```ts
+// app/actions.ts
 'use server';
 export async function getAvailableSlots(date: Date, serviceId: string) {
   // Beží na serveri, vidí DB, env vars
@@ -32,6 +38,7 @@ export async function getAvailableSlots(date: Date, serviceId: string) {
 ```
 
 ```tsx
+// app/picker.tsx
 'use client';
 import { getAvailableSlots } from './actions';
 
@@ -41,16 +48,38 @@ const handleDateChange = async (date: Date) => {
 };
 ```
 
+### Časové zóny — kritické
+
+Toto je miesto, kde sa to zvyčajne pokazí v produkcii. Predstav si:
+
+- **Tvoj laptop**: timezone `Europe/Bratislava` (CET = UTC+1 zima, CEST = UTC+2 leto)
+- **Vercel server**: vždy `UTC`
+- **Postgres**: ukladá `timestamp with timezone` ako UTC
+
+Keď v dev móde napíšeš `new Date('2026-05-22T13:15:00')`, JavaScript to interpretuje ako
+**lokálny čas** servera. Na tvojom laptope = 13:15 v Bratislave = 11:15 UTC. Na Vercele
+= 13:15 UTC = 15:15 v Bratislave. **Posun o 2 hodiny.**
+
+Preto: vždy buduj `Date` explicitne v `Europe/Bratislava` timezone, ukladaj UTC do DB,
+formátuj späť v `Europe/Bratislava` na displaye.
+
+Knižnica `date-fns-tz` ti to robí ľahké:
+- `fromZonedTime(localDate, 'Europe/Bratislava')` → vráti `Date` v UTC (na uloženie do DB)
+- `toZonedTime(utcDate, 'Europe/Bratislava')` → vráti `Date` posunutý do TZ (na zobrazenie)
+- `formatInTimeZone(date, 'Europe/Bratislava', 'HH:mm')` → "13:15" string
+
 ### Ako rátame voľné sloty?
 
 Logika:
 
-1. Vezmi všetky 15-minútové sloty v daný deň medzi working hours (napr. 9:00–19:00)
+1. Vezmi všetky 15-minútové sloty v daný deň medzi working hours (napr. 9:00–19:00
+   **v Bratislavskej TZ**)
 2. Pre každý slot skontroluj:
    - Či by sa služba zmestila (slot + duration ≤ koniec working hours)
    - Či sa neprekrýva s existujúcou rezerváciou
    - Či sa neprekrýva s blocked slotom
-3. Vráť zoznam voľných slotov
+   - Či je v budúcnosti (nie minulý čas)
+3. Vráť zoznam voľných slotov ako `"HH:mm"` stringy
 
 ## Tvoja úloha
 
@@ -63,20 +92,73 @@ pnpm dlx shadcn@latest add calendar
 
 `shadcn calendar` automaticky pridá aj `react-day-picker` ako dependency.
 
-### 2. Vytvor business logic súbor `src/lib/booking-logic.ts`
+### 2. Vytvor časový helper `src/lib/timezone.ts`
 
 ```ts
-import { addMinutes, isAfter, isBefore, setHours, setMinutes, setSeconds } from 'date-fns';
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 
-// Working hours sú zatiaľ hardcoded. V tasku 12 ich Samuel bude vedieť meniť.
-const WORKING_HOURS = {
+export const TZ = 'Europe/Bratislava';
+
+/**
+ * Z "2026-05-22" + "13:15" vytvori Date v UTC (na ulozenie do DB).
+ * Cas je interpretovany v Europe/Bratislava.
+ */
+export const buildBratislavaDateTime = (dateStr: string, timeStr: string): Date => {
+  // ISO string bez TZ → fromZonedTime to bere ako Bratislavsky cas → vrati Date v UTC.
+  return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ);
+};
+
+/**
+ * Z Date (UTC) vrati "HH:mm" v Bratislavskej zone.
+ */
+export const formatBratislavaTime = (date: Date): string => {
+  return formatInTimeZone(date, TZ, 'HH:mm');
+};
+
+/**
+ * Z Date (UTC) vrati "dd.MM.yyyy HH:mm" v Bratislavskej zone.
+ */
+export const formatBratislavaDateTime = (date: Date): string => {
+  return formatInTimeZone(date, TZ, 'dd.MM.yyyy HH:mm');
+};
+
+/**
+ * Vrati zaciatok dna (00:00) v Bratislavskej zone, ako UTC Date.
+ */
+export const startOfDayBratislava = (dateStr: string): Date => {
+  return fromZonedTime(`${dateStr}T00:00:00`, TZ);
+};
+
+/**
+ * Vrati koniec dna (23:59:59.999) v Bratislavskej zone, ako UTC Date.
+ */
+export const endOfDayBratislava = (dateStr: string): Date => {
+  return fromZonedTime(`${dateStr}T23:59:59.999`, TZ);
+};
+
+/**
+ * Vrati den v tyzdni (0=nedela, 1=pondelok, ..., 6=sobota) pre dany Date v Bratislavskej zone.
+ */
+export const getDayOfWeekBratislava = (date: Date): number => {
+  return toZonedTime(date, TZ).getDay();
+};
+```
+
+### 3. Vytvor business logic `src/lib/booking-logic.ts`
+
+```ts
+import { addMinutes } from 'date-fns';
+import { formatBratislavaTime, getDayOfWeekBratislava, buildBratislavaDateTime } from './timezone';
+
+// Working hours sú zatiaľ hardcoded. V Tasku 12 ich Samuel bude vedieť meniť.
+const WORKING_HOURS: Record<number, { start: string; end: string } | null> = {
   // 0 = nedeľa, 1 = pondelok, ..., 6 = sobota
-  1: { start: 9, end: 19 },
-  2: { start: 9, end: 19 },
-  3: { start: 9, end: 19 },
-  4: { start: 9, end: 19 },
-  5: { start: 9, end: 19 },
-  6: { start: 9, end: 14 },
+  1: { start: '09:00', end: '19:00' },
+  2: { start: '09:00', end: '19:00' },
+  3: { start: '09:00', end: '19:00' },
+  4: { start: '09:00', end: '19:00' },
+  5: { start: '09:00', end: '19:00' },
+  6: { start: '09:00', end: '14:00' },
   0: null, // nedeľa zatvorené
 };
 
@@ -87,35 +169,40 @@ type BusySlot = {
   endTime: Date;
 };
 
+/**
+ * Vrati zoznam volnych slotov ("HH:mm") pre dany den.
+ * Cely vypocet je v Bratislavskej zone, vsetky Date objekty (input aj busy) su UTC.
+ */
 export const computeAvailableSlots = (
-  date: Date,
+  dateStr: string, // "YYYY-MM-DD"
   serviceDurationMinutes: number,
   busySlots: BusySlot[],
 ): string[] => {
-  const dayOfWeek = date.getDay() as keyof typeof WORKING_HOURS;
+  // Zisti den v tyzdni — vyrobime zaciatok dna v Bratislave a pozrieme.
+  const dayStartUtc = buildBratislavaDateTime(dateStr, '00:00');
+  const dayOfWeek = getDayOfWeekBratislava(dayStartUtc);
   const hours = WORKING_HOURS[dayOfWeek];
 
   if (!hours) return [];
 
-  const dayStart = setSeconds(setMinutes(setHours(date, hours.start), 0), 0);
-  const dayEnd = setSeconds(setMinutes(setHours(date, hours.end), 0), 0);
+  const openTimeUtc = buildBratislavaDateTime(dateStr, hours.start);
+  const closeTimeUtc = buildBratislavaDateTime(dateStr, hours.end);
+  const now = new Date();
 
   const available: string[] = [];
-  let slot = dayStart;
+  let slot = openTimeUtc;
 
-  while (isBefore(slot, dayEnd)) {
+  while (slot < closeTimeUtc) {
     const slotEnd = addMinutes(slot, serviceDurationMinutes);
 
-    if (isAfter(slotEnd, dayEnd)) break;
+    if (slotEnd > closeTimeUtc) break;
 
     const overlaps = busySlots.some(
-      (busy) => isBefore(slot, busy.endTime) && isBefore(busy.startTime, slotEnd),
+      (busy) => slot < busy.endTime && busy.startTime < slotEnd,
     );
 
-    if (!overlaps && isAfter(slot, new Date())) {
-      const hh = slot.getHours().toString().padStart(2, '0');
-      const mm = slot.getMinutes().toString().padStart(2, '0');
-      available.push(`${hh}:${mm}`);
+    if (!overlaps && slot > now) {
+      available.push(formatBratislavaTime(slot));
     }
 
     slot = addMinutes(slot, SLOT_STEP_MINUTES);
@@ -125,29 +212,32 @@ export const computeAvailableSlots = (
 };
 ```
 
-### 3. Vytvor Server Action `src/app/rezervacia/actions.ts`
+> 💡 **Prečo `slot < closeTimeUtc` a nie `isBefore`?**
+> JavaScript `Date` objekty sa porovnávajú cez `<` `>` `<=` `>=` priamo (interne sú to
+> numbery v milisekundách). `isBefore` z date-fns robí to isté ale s overheadom volania.
+
+### 4. Vytvor Server Action `src/app/rezervacia/actions.ts`
 
 ```ts
 'use server';
 
+import { and, eq, gte, lt, lte, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { bookings, services, blockedSlots } from '@/db/schema';
-import { and, eq, gte, lte, or } from 'drizzle-orm';
-import { startOfDay, endOfDay } from 'date-fns';
+import { bookings, blockedSlots, services } from '@/db/schema';
 import { computeAvailableSlots } from '@/lib/booking-logic';
+import { startOfDayBratislava, endOfDayBratislava } from '@/lib/timezone';
 
 export const getAvailableSlots = async (
   serviceId: string,
-  dateIso: string,
+  dateStr: string, // "YYYY-MM-DD"
 ): Promise<string[]> => {
-  const date = new Date(dateIso);
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
-
   const [service] = await db.select().from(services).where(eq(services.id, serviceId));
   if (!service) return [];
 
-  // Existujúce rezervácie v daný deň.
+  const dayStart = startOfDayBratislava(dateStr);
+  const dayEnd = endOfDayBratislava(dateStr);
+
+  // Existujuce aktivne rezervacie ktore zacinaju v dany den.
   const existingBookings = await db
     .select({ startTime: bookings.startTime, endTime: bookings.endTime })
     .from(bookings)
@@ -159,7 +249,8 @@ export const getAvailableSlots = async (
       ),
     );
 
-  // Blocked sloty, ktoré sa dotýkajú daného dňa.
+  // Blocked sloty ktore sa dotykaju daneho dna (zacinaju ALEBO koncia v ramci dna,
+  // alebo cely obklopuju den).
   const blocks = await db
     .select({ startTime: blockedSlots.startTime, endTime: blockedSlots.endTime })
     .from(blockedSlots)
@@ -167,14 +258,15 @@ export const getAvailableSlots = async (
       or(
         and(gte(blockedSlots.startTime, dayStart), lte(blockedSlots.startTime, dayEnd)),
         and(gte(blockedSlots.endTime, dayStart), lte(blockedSlots.endTime, dayEnd)),
+        and(lt(blockedSlots.startTime, dayStart), gte(blockedSlots.endTime, dayEnd)),
       ),
     );
 
-  return computeAvailableSlots(date, service.durationMinutes, [...existingBookings, ...blocks]);
+  return computeAvailableSlots(dateStr, service.durationMinutes, [...existingBookings, ...blocks]);
 };
 ```
 
-### 4. Vytvor `src/app/rezervacia/date-time-picker.tsx`
+### 5. Vytvor `src/app/rezervacia/date-time-picker.tsx`
 
 ```tsx
 'use client';
@@ -198,18 +290,21 @@ export const DateTimePicker = ({ serviceId, selectedDate, selectedTime }: Props)
   const [isPending, startTransition] = useTransition();
   const [slots, setSlots] = useState<string[]>([]);
 
-  const date = selectedDate ? new Date(selectedDate) : undefined;
-
+  // Pozor: `date` z `selectedDate` je novy Date object pri kazdom renderi (nova referencia).
+  // Ak ho dame do useEffect dependency array, useEffect sa lupne donekonecna.
+  // Riesenie: pouzijeme `selectedDate` STRING ako dependency, nie Date object.
   useEffect(() => {
-    if (!date) {
+    if (!selectedDate) {
       setSlots([]);
       return;
     }
     startTransition(async () => {
-      const result = await getAvailableSlots(serviceId, date.toISOString());
+      const result = await getAvailableSlots(serviceId, selectedDate);
       setSlots(result);
     });
-  }, [date?.toISOString(), serviceId]);
+  }, [selectedDate, serviceId]);
+
+  const date = selectedDate ? new Date(`${selectedDate}T12:00:00`) : undefined;
 
   const updateUrl = (key: 'date' | 'time', value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -228,12 +323,12 @@ export const DateTimePicker = ({ serviceId, selectedDate, selectedTime }: Props)
       />
       <div>
         <h3 className="font-medium mb-3">Voľné časy</h3>
-        {!date && <p className="text-sm text-muted-foreground">Najprv vyber dátum.</p>}
-        {date && isPending && <p className="text-sm text-muted-foreground">Načítavam...</p>}
-        {date && !isPending && slots.length === 0 && (
+        {!selectedDate && <p className="text-sm text-muted-foreground">Najprv vyber dátum.</p>}
+        {selectedDate && isPending && <p className="text-sm text-muted-foreground">Načítavam...</p>}
+        {selectedDate && !isPending && slots.length === 0 && (
           <p className="text-sm text-muted-foreground">V tento deň nie sú voľné termíny.</p>
         )}
-        {date && !isPending && slots.length > 0 && (
+        {selectedDate && !isPending && slots.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {slots.map((time) => (
               <Button
@@ -253,7 +348,17 @@ export const DateTimePicker = ({ serviceId, selectedDate, selectedTime }: Props)
 };
 ```
 
-### 5. Aktualizuj `src/app/rezervacia/page.tsx`
+> 💡 **`useEffect` dependency gotcha:**
+> Keby sme dali `date` (Date object) do dependency array, React by ho porovnával cez `===`
+> a `new Date(...)` v každom renderi je **nová referencia** → effect by sa volal donekonečna.
+> Preto používame `selectedDate` ako string — strings sa porovnávajú podľa hodnoty.
+
+> 💡 **Prečo `T12:00:00` pri konštrukcii `date`?**
+> Ak by sme dali `new Date('2026-05-22')`, JavaScript by ho interpretoval ako **UTC** polnoc.
+> Pre browser v `Europe/Bratislava` (UTC+1/+2) by to bolo "1:00/2:00 AM" — `getDay()` by
+> mohol vrátiť predošlý deň. `T12:00:00` (poludnie) je vždy istý deň, bez ohľadu na TZ.
+
+### 6. Aktualizuj `src/app/rezervacia/page.tsx`
 
 ```tsx
 import { db } from '@/db';
@@ -304,7 +409,7 @@ export default async function RezervaciaPage({ searchParams }: Props) {
 }
 ```
 
-### 6. Otestuj
+### 7. Otestuj
 
 ```bash
 pnpm dev
@@ -316,53 +421,59 @@ pnpm dev
 - Vyber čas → URL je `?serviceId=...&date=...&time=...`
 - Skús dnes — staršie časy ako "teraz" by sa nemali zobraziť
 - Skús nedeľu — žiadne sloty (zatvorené)
-- Vlož ručne booking do DB cez Drizzle Studio na dnešok 10:00 — slot 10:00 by mal zmiznúť
+- Vlož ručne booking do DB cez Drizzle Studio na zajtra 10:00 — slot 10:00 a okolité slot by mali zmiznúť (lebo by sa s ním prekrývali)
 
-### 7. Commit
+### 8. Commit
 
 ```bash
 git add .
-git commit -m "task 08: booking flow step 2 - calendar with available slots via server action"
+git commit -m "task 08: booking flow step 2 - calendar with available slots, Europe/Bratislava TZ"
 git push
 ```
 
 ## Acceptance Criteria
 
 - [ ] Po vybere služby sa zobrazí kalendár + zoznam voľných časov
-- [ ] Voľné časy sa rátajú správne (rešpektujú working hours, existujúce bookings, blocked slots)
-- [ ] V nedeľu nie sú žiadne sloty (zatvorené)
+- [ ] Časy sa rátajú v **Europe/Bratislava** timezone (overiteľné: nastav OS TZ na inú,
+  výsledok by mal byť rovnaký)
+- [ ] Voľné časy rešpektujú working hours (Po–Pi 9–19, So 9–14, Ne zatvorené)
+- [ ] Existujúce booking + blocked slot blokujú prislušné časy
 - [ ] Časy v minulosti sa nezobrazujú pre dnešok
 - [ ] Po vybere času sa URL aktualizuje a zobrazí sa Sekcia 3 (placeholder)
-- [ ] Vybraný čas je vizuálne odlíšený (button variant="default")
+- [ ] Vybraný čas má vizuálne odlíšenie (button `variant="default"`)
 - [ ] `useTransition` zobrazuje "Načítavam..." kým server action beží
 
 ## Bonus
 
 - Rozdeľ sloty na "Doobeda" (do 12:00) a "Poobede" (od 12:00) ako booqme
-- V kalendári označ červeným bodkom dni, kedy sú voľné sloty (zatiaľ sú všetky dni klikateľné)
-- Pridaj timezone handling — vždy `Europe/Bratislava` (využi `date-fns-tz`)
+- V kalendári označ červeným bodkom dni s voľnými slotmi (zatiaľ sú všetky dni klikateľné)
+- Pridaj `locale={sk}` z `date-fns/locale` do `<Calendar>` — slovenské názvy mesiacov
 
 ## Tipy a riešenia problémov
 
-**Problém:** Calendar komponent ukazuje anglické názvy dní
-**Riešenie:** Pridaj `locale` z `date-fns/locale/sk`. shadcn Calendar zoberie locale z `react-day-picker` props.
+**Problém:** Calendar zobrazí anglické názvy mesiacov
+**Riešenie:** Pridaj `import { sk } from 'date-fns/locale'` a `<Calendar locale={sk} />`.
+react-day-picker rešpektuje `locale` prop.
 
 **Problém:** Server action vracia prázdny array, hoci by mali byť sloty
-**Riešenie:** Daj `console.log` do server action — výstup uvidíš v termináli kde beží `pnpm dev`,
-NIE v browser console. Server actions bežia na serveri.
+**Riešenie:** Daj `console.log` do server action — výstup uvidíš v termináli kde beží
+`pnpm dev`, NIE v browser console. Server actions bežia na serveri.
 
-**Problém:** `useEffect` sa loopuje (neustále volá server action)
-**Riešenie:** Závislosti! Použí `date?.toISOString()` ako dependency, NIE `date`. Pretože new
-`Date` object pri každom renderi má inú referenciu.
+**Problém:** `useEffect` sa volá donekonečna
+**Riešenie:** Dependency array! `useEffect(..., [selectedDate])` (string) — NIE `[date]`
+(Date object).
 
-**Problém:** Klik na disabled deň v kalendári nič nerobí ale console error
-**Riešenie:** `react-day-picker` to handluje. Skontroluj že `disabled` prop má správnu logiku.
+**Problém:** Slot je v zlej hodine (napr. máš 11:15 namiesto 13:15)
+**Riešenie:** Timezone bug. Skontroluj že všade používaš `formatBratislavaTime`,
+`buildBratislavaDateTime`, nie raw `Date()` / `getHours()`.
 
 ## Pýtanie sa Claude Code
 
-- *"Vysvetli mi `useTransition` v Reacte. Čo robí `startTransition` a prečo ho používame?"*
-- *"Ako fungujú časové zóny v JavaScripte? Mám DB v UTC, server v Európe, klient kdekoľvek —
-  ako zaistím, že 13:15 je vždy 13:15 v Bratislave?"*
+- *"Vysvetli mi `useTransition` v Reacte. Čo robí `startTransition` a prečo ho používame
+  s server action?"*
+- *"Mám booking v DB s `startTime = 2026-05-22T11:15:00Z` (UTC). Helper to formátuje na
+  `13:15` v Bratislave. Vysvetli mi krok po kroku, ako `formatInTimeZone` vie urobiť tento
+  posun."*
 - *"Môj algoritmus na rátanie slotov vracia zlé výsledky pre 75-minútovú službu — slot 18:00
   je voľný hoci by nemal byť (skončil by sa 19:15). Ukáž mi, kde je chyba: [paste kódu]"*
 
